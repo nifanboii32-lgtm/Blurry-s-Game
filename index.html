@@ -1,0 +1,4268 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Arrow Go! - Cross-Platform Arcade Game</title>
+    <meta name="description" content="A high-octane cross-platform HTML5 Canvas arcade game with procedural infinite levels, rotating dynamic wheel obstacles, boss fights, economy, and sound shop." />
+    <meta property="og:title" content="Arrow Go! Arcade" />
+    <meta property="og:description" content="Shoot all required arrows into the spinning wheel, defeat epic bosses, earn coins, and unlock special arrows, skins, and sound packs." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <style>
+      :root {
+        --bg-color: #07090e;
+        --surface-glass: rgba(16, 20, 32, 0.82);
+        --surface-glass-card: rgba(22, 28, 44, 0.94);
+        --surface-border: rgba(255, 255, 255, 0.12);
+        --primary: #00f0ff;
+        --secondary: #ff0077;
+        --accent: #ffd000;
+        --gold: #ffbe0b;
+        --text: #ffffff;
+        --text-muted: #8c9cb2;
+        --danger: #ff2a55;
+        --success: #00ff88;
+        --boss-color: #ff0055;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
+      }
+
+      html, body {
+        width: 100%;
+        height: 100%;
+        height: 100dvh;
+        overflow: hidden;
+        background-color: var(--bg-color);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans Bengali", Roboto, "Helvetica Neue", Arial, sans-serif;
+        touch-action: none;
+      }
+
+      #game-container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        height: 100dvh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+      }
+
+      canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+        z-index: 1;
+      }
+
+      /* HUD OVERLAYS */
+      .hud-layer {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: calc(env(safe-area-inset-top, 10px) + 6px) calc(env(safe-area-inset-right, 10px) + 6px) calc(env(safe-area-inset-bottom, 10px) + 6px) calc(env(safe-area-inset-left, 10px) + 6px);
+      }
+
+      .hud-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 8px;
+        width: 100%;
+      }
+
+      .hud-stat-group {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+
+      .hud-badge-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .hud-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--surface-glass);
+        border: 1px solid var(--surface-border);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        padding: 5px 12px;
+        border-radius: 9999px;
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+      }
+
+      .level-badge {
+        font-weight: 800;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--primary);
+        text-shadow: 0 0 10px rgba(0, 240, 255, 0.6);
+      }
+      .level-badge.boss {
+        color: var(--boss-color);
+        text-shadow: 0 0 12px rgba(255, 0, 85, 0.8);
+        animation: pulseBoss 1.2s infinite alternate ease-in-out;
+      }
+
+      @keyframes pulseBoss {
+        0% { transform: scale(1); filter: brightness(1); }
+        100% { transform: scale(1.04); filter: brightness(1.3); }
+      }
+
+      .coin-badge {
+        background: rgba(30, 26, 12, 0.85);
+        border: 1px solid rgba(255, 190, 11, 0.35);
+        color: var(--gold);
+        font-family: ui-monospace, SFMono-Regular, monospace;
+        font-weight: 800;
+        font-size: 13px;
+        box-shadow: 0 0 12px rgba(255, 190, 11, 0.2);
+        cursor: pointer;
+        pointer-events: auto;
+        transition: transform 0.15s ease;
+      }
+      .coin-badge:hover {
+        transform: scale(1.05);
+      }
+
+      .score-display {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 17px;
+        font-weight: 800;
+        color: #fff;
+        line-height: 1.2;
+      }
+
+      .score-high {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        color: var(--text-muted);
+      }
+
+      .combo-tag {
+        font-size: 11px;
+        font-weight: 800;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        opacity: 0;
+        transform: translateY(-4px);
+        transition: opacity 0.2s, transform 0.2s;
+      }
+      .combo-tag.active {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .hud-controls {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        pointer-events: auto;
+      }
+
+      .hud-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: var(--surface-glass);
+        border: 1px solid var(--surface-border);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        color: #fff;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        outline: none;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+        transition: transform 0.15s ease, background-color 0.2s ease, border-color 0.2s ease;
+      }
+      .hud-btn:hover {
+        transform: scale(1.08);
+        border-color: var(--primary);
+        box-shadow: 0 0 14px rgba(0, 240, 255, 0.4);
+      }
+      .hud-btn:active {
+        transform: scale(0.92);
+      }
+      .hud-btn svg {
+        width: 18px;
+        height: 18px;
+        stroke: currentColor;
+        stroke-width: 2;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      /* BOSS HEALTH BAR (TOP CENTER - MOVED UP TO HEADER) */
+      .boss-health-container {
+        position: absolute;
+        top: calc(env(safe-area-inset-top, 6px) + 6px);
+        left: 50%;
+        transform: translateX(-50%);
+        width: 44%;
+        min-width: 170px;
+        max-width: 250px;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        pointer-events: none;
+        z-index: 20;
+      }
+      .boss-health-container.active {
+        display: flex;
+      }
+
+      .boss-title-row {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--boss-color);
+        text-shadow: 0 0 8px rgba(255, 0, 85, 0.7);
+      }
+
+      .boss-health-track {
+        width: 100%;
+        height: 7px;
+        background: rgba(0, 0, 0, 0.75);
+        border: 1px solid rgba(255, 0, 85, 0.5);
+        border-radius: 9999px;
+        overflow: hidden;
+        box-shadow: 0 0 10px rgba(255, 0, 85, 0.35);
+      }
+
+      .boss-health-fill {
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, #ff0055 0%, #ff5500 50%, #ffe600 100%);
+        border-radius: 9999px;
+        transition: width 0.25s ease;
+      }
+
+      /* HUD BOTTOM SECTION (QUIVER + SPECIAL ARROWS) */
+      .hud-bottom {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        width: 100%;
+        gap: 10px;
+        pointer-events: none;
+      }
+
+      /* QUIVER HUD */
+      .quiver-container {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+
+      .quiver-label {
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .quiver-counter {
+        color: var(--primary);
+        font-size: 13px;
+        font-weight: 800;
+        font-family: ui-monospace, SFMono-Regular, monospace;
+      }
+
+      .quiver-rack {
+        display: flex;
+        align-items: flex-end;
+        gap: 3px;
+        height: 32px;
+        padding: 5px 8px;
+        background: var(--surface-glass);
+        border: 1px solid var(--surface-border);
+        border-radius: 10px;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+        max-width: 170px;
+        overflow-x: hidden;
+      }
+
+      .quiver-arrow {
+        width: 3.5px;
+        height: 20px;
+        border-radius: 2px;
+        background: var(--primary);
+        box-shadow: 0 0 5px var(--primary);
+        transition: transform 0.2s ease, opacity 0.2s ease;
+      }
+      .quiver-arrow.spent {
+        opacity: 0.12;
+        transform: translateY(-6px) scale(0.7);
+        background: #555;
+        box-shadow: none;
+      }
+
+      /* SPECIAL ARROW SELECTOR HUD */
+      .special-ammo-selector {
+        display: flex;
+        gap: 6px;
+        pointer-events: auto;
+        background: var(--surface-glass);
+        border: 1px solid var(--surface-border);
+        border-radius: 14px;
+        padding: 5px 6px;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+      }
+
+      .ammo-btn {
+        position: relative;
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        outline: none;
+      }
+      .ammo-btn:hover {
+        background: rgba(255, 255, 255, 0.12);
+        transform: translateY(-2px);
+      }
+      .ammo-btn.active {
+        border-color: var(--primary);
+        background: rgba(0, 240, 255, 0.18);
+        box-shadow: 0 0 12px rgba(0, 240, 255, 0.45);
+        transform: translateY(-2px);
+      }
+      .ammo-btn.empty {
+        opacity: 0.45;
+        filter: grayscale(0.8);
+      }
+
+      .ammo-icon {
+        font-size: 16px;
+        line-height: 1;
+      }
+
+      .ammo-count {
+        font-size: 9px;
+        font-weight: 800;
+        font-family: ui-monospace, SFMono-Regular, monospace;
+        color: var(--accent);
+      }
+
+      .ammo-hotkey {
+        position: absolute;
+        top: -6px;
+        right: -4px;
+        font-size: 8px;
+        font-weight: 900;
+        background: rgba(0, 0, 0, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 4px;
+        padding: 1px 3px;
+        color: #fff;
+      }
+
+      /* MODALS AND OVERLAYS */
+      .modal-backdrop {
+        position: absolute;
+        inset: 0;
+        z-index: 50;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: rgba(4, 6, 12, 0.88);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        padding: 16px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.25s ease;
+      }
+      .modal-backdrop.show {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .modal-card {
+        width: 100%;
+        max-width: 460px;
+        max-height: 90vh;
+        max-height: 90dvh;
+        background: var(--surface-glass-card);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 22px;
+        padding: 24px 20px;
+        text-align: center;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 40px rgba(0, 240, 255, 0.12);
+        transform: scale(0.94);
+        transition: transform 0.25s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .modal-backdrop.show .modal-card {
+        transform: scale(1);
+      }
+
+      .modal-title {
+        font-size: 26px;
+        font-weight: 900;
+        letter-spacing: -0.02em;
+        text-transform: uppercase;
+        background: linear-gradient(135deg, #ffffff 30%, var(--primary) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .modal-subtitle {
+        font-size: 13px;
+        color: var(--text-muted);
+        line-height: 1.45;
+      }
+
+      .btn-primary {
+        width: 100%;
+        padding: 13px 20px;
+        border-radius: 12px;
+        border: none;
+        background: linear-gradient(135deg, var(--primary) 0%, #0088ff 100%);
+        color: #05070d;
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        cursor: pointer;
+        box-shadow: 0 6px 18px rgba(0, 240, 255, 0.35);
+        transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.15s ease;
+      }
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 24px rgba(0, 240, 255, 0.55);
+        filter: brightness(1.1);
+      }
+      .btn-primary:active {
+        transform: translateY(1px);
+      }
+
+      .btn-secondary {
+        width: 100%;
+        padding: 11px 18px;
+        border-radius: 11px;
+        border: 1px solid var(--surface-border);
+        background: rgba(255, 255, 255, 0.06);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background 0.2s, border-color 0.2s;
+      }
+      .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.3);
+      }
+
+      .stats-grid {
+        width: 100%;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        margin: 4px 0;
+      }
+
+      .stat-box {
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 12px;
+        padding: 9px 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+      }
+
+      .stat-box-label {
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-muted);
+        font-weight: 700;
+      }
+
+      .stat-box-value {
+        font-family: ui-monospace, SFMono-Regular, monospace;
+        font-size: 16px;
+        font-weight: 800;
+        color: #fff;
+      }
+
+      /* SHOP UI STYLES */
+      .shop-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        border-bottom: 1px solid var(--surface-border);
+        padding-bottom: 10px;
+      }
+
+      .shop-balance {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(255, 190, 11, 0.15);
+        border: 1px solid rgba(255, 190, 11, 0.4);
+        padding: 5px 12px;
+        border-radius: 9999px;
+        font-weight: 800;
+        color: var(--gold);
+        font-family: ui-monospace, SFMono-Regular, monospace;
+        font-size: 14px;
+      }
+
+      .shop-tabs {
+        display: flex;
+        width: 100%;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid var(--surface-border);
+        border-radius: 12px;
+        padding: 3px;
+        gap: 2px;
+        overflow-x: auto;
+      }
+
+      .shop-tab-btn {
+        flex: 1;
+        min-width: 65px;
+        padding: 8px 4px;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        font-size: 11px;
+        font-weight: 800;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+      }
+      .shop-tab-btn.active {
+        background: rgba(255, 255, 255, 0.14);
+        color: #fff;
+      }
+
+      .shop-items-container {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-height: 46vh;
+        overflow-y: auto;
+        padding-right: 2px;
+      }
+
+      .shop-item-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        padding: 10px 12px;
+        gap: 10px;
+        text-align: left;
+        transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
+      }
+      .shop-item-card.equipped-card {
+        border-color: rgba(0, 255, 136, 0.55);
+        background: rgba(0, 255, 136, 0.08);
+        box-shadow: 0 0 14px rgba(0, 255, 136, 0.22);
+      }
+
+      .shop-item-icon-box {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        flex-shrink: 0;
+      }
+
+      .shop-item-details {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .shop-item-title {
+        font-size: 13px;
+        font-weight: 800;
+        color: #fff;
+      }
+
+      .shop-item-desc {
+        font-size: 10px;
+        color: var(--text-muted);
+        line-height: 1.3;
+      }
+
+      .shop-item-action {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+        flex-shrink: 0;
+      }
+
+      .btn-preview {
+        padding: 4px 8px;
+        border-radius: 6px;
+        border: 1px solid rgba(0, 240, 255, 0.4);
+        background: rgba(0, 240, 255, 0.1);
+        color: var(--primary);
+        font-size: 10px;
+        font-weight: 800;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        transition: background 0.15s, transform 0.15s;
+      }
+      .btn-preview:hover {
+        background: rgba(0, 240, 255, 0.25);
+        transform: scale(1.05);
+      }
+      .btn-preview:active {
+        transform: scale(0.95);
+      }
+
+      .btn-buy {
+        padding: 6px 12px;
+        border-radius: 8px;
+        border: none;
+        background: linear-gradient(135deg, var(--gold) 0%, #ff8800 100%);
+        color: #000;
+        font-size: 11px;
+        font-weight: 800;
+        cursor: pointer;
+        transition: transform 0.15s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .btn-buy:hover {
+        transform: scale(1.05);
+      }
+      .btn-buy.disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        filter: grayscale(1);
+      }
+
+      .btn-equip {
+        padding: 6px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--primary);
+        background: rgba(0, 240, 255, 0.15);
+        color: var(--primary);
+        font-size: 11px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .btn-equip.equipped {
+        border-color: var(--success);
+        background: rgba(0, 255, 136, 0.2);
+        color: var(--success);
+        cursor: default;
+      }
+
+      /* SETTINGS MODAL STYLES */
+      .settings-list {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .settings-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 10px 14px;
+      }
+
+      .settings-label {
+        font-size: 13px;
+        font-weight: 700;
+        color: #fff;
+        text-align: left;
+      }
+      .settings-desc {
+        font-size: 10px;
+        color: var(--text-muted);
+      }
+
+      .toggle-switch {
+        position: relative;
+        width: 44px;
+        height: 24px;
+      }
+      .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        inset: 0;
+        background-color: rgba(255, 255, 255, 0.2);
+        transition: .3s;
+        border-radius: 24px;
+      }
+      .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .3s;
+        border-radius: 50%;
+      }
+      input:checked + .toggle-slider {
+        background-color: var(--primary);
+      }
+      input:checked + .toggle-slider:before {
+        transform: translateX(20px);
+      }
+
+      /* LEVEL COMPLETE TOAST BANNER */
+      .level-clear-toast {
+        position: absolute;
+        top: 28%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0.8);
+        z-index: 40;
+        background: rgba(12, 24, 20, 0.94);
+        border: 2px solid var(--success);
+        box-shadow: 0 0 35px rgba(0, 255, 136, 0.5);
+        border-radius: 20px;
+        padding: 16px 32px;
+        text-align: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.3s ease;
+      }
+      .level-clear-toast.boss-toast {
+        background: rgba(30, 8, 16, 0.94);
+        border-color: var(--boss-color);
+        box-shadow: 0 0 40px rgba(255, 0, 85, 0.6);
+      }
+      .level-clear-toast.show {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+      }
+      .level-clear-title {
+        font-size: 22px;
+        font-weight: 900;
+        color: var(--success);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        text-shadow: 0 0 16px rgba(0, 255, 136, 0.6);
+      }
+      .level-clear-toast.boss-toast .level-clear-title {
+        color: var(--boss-color);
+        text-shadow: 0 0 18px rgba(255, 0, 85, 0.8);
+      }
+      .level-clear-score {
+        font-size: 13px;
+        color: #ffffff;
+        margin-top: 4px;
+        font-weight: 700;
+      }
+
+      /* SCREEN FLASH OVERLAY */
+      #flash-overlay {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 30;
+        opacity: 0;
+        transition: opacity 0.05s linear;
+      }
+
+      /* COIN FLOATER ANIMATION */
+      .coin-floater {
+        position: absolute;
+        font-family: ui-monospace, SFMono-Regular, monospace;
+        font-size: 14px;
+        font-weight: 900;
+        color: var(--gold);
+        text-shadow: 0 0 8px rgba(255, 190, 11, 0.8);
+        pointer-events: none;
+        z-index: 35;
+        animation: floatUp 0.85s ease-out forwards;
+      }
+
+      @keyframes floatUp {
+        0% { opacity: 1; transform: translate(-50%, 0) scale(0.8); }
+        50% { transform: translate(-50%, -24px) scale(1.15); }
+        100% { opacity: 0; transform: translate(-50%, -48px) scale(1); }
+      }
+
+      /* MOBILE RESPONSIVE TWEAKS */
+      @media (max-width: 480px) {
+        .hud-top {
+          padding: 4px 6px;
+        }
+        .level-badge {
+          font-size: 11px;
+        }
+        .score-display {
+          font-size: 15px;
+        }
+        .hud-btn {
+          width: 35px;
+          height: 35px;
+        }
+        .ammo-btn {
+          width: 40px;
+          height: 40px;
+        }
+        .ammo-icon {
+          font-size: 14px;
+        }
+        .quiver-rack {
+          max-width: 130px;
+          height: 28px;
+        }
+        .modal-card {
+          padding: 18px 14px;
+          max-height: 94vh;
+          max-height: 94dvh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-container">
+      <!-- Main Game Canvas -->
+      <canvas id="gameCanvas"></canvas>
+
+      <!-- Full-screen Dynamic Flash Overlay for Hits/Losses -->
+      <div id="flash-overlay"></div>
+
+      <!-- HUD Top & Bottom -->
+      <div class="hud-layer">
+        <!-- Top Bar -->
+        <div class="hud-top">
+          <div class="hud-stat-group">
+            <div class="hud-badge-row">
+              <div class="hud-badge">
+                <span id="level-indicator" class="level-badge">STAGE 1</span>
+                <span id="combo-indicator" class="combo-tag">COMBO x2</span>
+              </div>
+              <div id="btn-open-shop-badge" class="hud-badge coin-badge" title="Open Shop">
+                <span>🪙</span>
+                <span id="coin-counter">0</span>
+              </div>
+            </div>
+            <div style="padding-left: 6px;">
+              <div class="score-display"><span id="score-val">0</span></div>
+              <div class="score-high"><span id="label-high-score">BEST</span> <span id="high-score-val">0</span></div>
+            </div>
+          </div>
+
+          <!-- Controls: Language Toggle, Shop, Settings, Audio, Pause -->
+          <div class="hud-controls">
+            <!-- Language Switch Button: EN / BN -->
+            <button id="btn-lang" class="hud-btn" aria-label="Switch Language" title="Switch Language / ভাষা পরিবর্তন" style="font-weight: 900; font-size: 11px; letter-spacing: 0.05em; color: var(--primary);">
+              BN
+            </button>
+            <!-- Shop Button -->
+            <button id="btn-shop" class="hud-btn" aria-label="Shop" title="In-Game Shop">
+              <svg viewBox="0 0 24 24">
+                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <path d="M16 10a4 4 0 0 1-8 0"></path>
+              </svg>
+            </button>
+            <!-- Settings Button -->
+            <button id="btn-settings" class="hud-btn" aria-label="Settings" title="Game Settings">
+              <svg viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+            </button>
+            <!-- Audio Toggle Button -->
+            <button id="btn-audio" class="hud-btn" aria-label="Toggle Sound" title="Toggle Sound">
+              <svg id="svg-audio-on" viewBox="0 0 24 24">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+              </svg>
+              <svg id="svg-audio-off" viewBox="0 0 24 24" style="display: none;">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <line x1="23" y1="9" x2="17" y2="15"></line>
+                <line x1="17" y1="9" x2="23" y2="15"></line>
+              </svg>
+            </button>
+            <!-- Pause Button -->
+            <button id="btn-pause" class="hud-btn" aria-label="Pause Game" title="Pause Game">
+              <svg viewBox="0 0 24 24">
+                <rect x="6" y="4" width="4" height="16" rx="1"></rect>
+                <rect x="14" y="4" width="4" height="16" rx="1"></rect>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Boss Health Bar -->
+        <div id="boss-health-bar" class="boss-health-container">
+          <div class="boss-title-row">
+            <span id="boss-name">BOSS: CYBER TITAN</span>
+            <span id="boss-hp-text">10 / 10 HP</span>
+          </div>
+          <div class="boss-health-track">
+            <div id="boss-health-fill" class="boss-health-fill"></div>
+          </div>
+        </div>
+
+        <!-- Bottom HUD: Quiver + Special Ammo Selector -->
+        <div class="hud-bottom">
+          <!-- Quiver Left/Bottom Queue -->
+          <div class="quiver-container">
+            <div class="quiver-label">
+              <span id="quiver-label-text">ARROWS</span>
+              <span id="quiver-num" class="quiver-counter">5</span>
+            </div>
+            <div id="quiver-rack" class="quiver-rack">
+              <!-- Dynamic arrow slots injected via JS -->
+            </div>
+          </div>
+
+          <!-- Special Arrow Ammo Selector -->
+          <div class="special-ammo-selector">
+            <button id="ammo-normal" class="ammo-btn active" title="Standard Arrow (Hotkey: 1) • Free / Unlimited">
+              <span class="ammo-hotkey">1</span>
+              <span class="ammo-icon">🏹</span>
+              <span class="ammo-count">∞</span>
+            </button>
+            <button id="ammo-bomb" class="ammo-btn" title="Bomb Arrow (Clears area on hit) (Hotkey: 2) • Price: 🪙150">
+              <span class="ammo-hotkey">2</span>
+              <span class="ammo-icon">💣</span>
+              <span id="count-bomb" class="ammo-count">x0</span>
+            </button>
+            <button id="ammo-slowmo" class="ammo-btn" title="Slow-Mo Arrow (50% speed for 5s) (Hotkey: 3) • Price: 🪙120">
+              <span class="ammo-hotkey">3</span>
+              <span class="ammo-icon">⏱️</span>
+              <span id="count-slowmo" class="ammo-count">x0</span>
+            </button>
+            <button id="ammo-ghost" class="ammo-btn" title="Ghost Arrow (Phases through pins) (Hotkey: 4) • Price: 🪙220">
+              <span class="ammo-hotkey">4</span>
+              <span class="ammo-icon">👻</span>
+              <span id="count-ghost" class="ammo-count">x0</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Level Cleared Banner -->
+      <div id="level-clear-toast" class="level-clear-toast">
+        <div id="level-clear-title" class="level-clear-title">STAGE CLEARED!</div>
+        <div id="level-clear-bonus" class="level-clear-score">+500 PTS • +20 🪙</div>
+      </div>
+
+      <!-- Start Screen Modal -->
+      <div id="modal-start" class="modal-backdrop show">
+        <div class="modal-card">
+          <div style="font-size: 38px;">🎯</div>
+          <div id="start-title" class="modal-title">ARROW GO!</div>
+          <p id="start-subtitle" class="modal-subtitle">
+            Time your shots into the dynamic spinning wheel. Conquer boss fights, collect coins, and unlock powerful special arrows, skins, and sound packs!
+          </p>
+          <div class="stats-grid">
+            <div class="stat-box">
+              <span id="start-high-label" class="stat-box-label">ALL-TIME HIGH</span>
+              <span id="start-high-score" class="stat-box-value">0</span>
+            </div>
+            <div class="stat-box">
+              <span id="start-coins-label" class="stat-box-label">COINS AVAILABLE</span>
+              <span id="start-coins" class="stat-box-value" style="color: var(--gold);">🪙 0</span>
+            </div>
+          </div>
+          <button id="btn-start-play" class="btn-primary">PLAY GAME</button>
+          <button id="btn-start-shop" class="btn-secondary">OPEN ARMORY SHOP 🛍️</button>
+        </div>
+      </div>
+
+      <!-- In-Game Shop Modal -->
+      <div id="modal-shop" class="modal-backdrop">
+        <div class="modal-card">
+          <div class="shop-header">
+            <div style="text-align: left;">
+              <div id="shop-title" class="modal-title" style="font-size: 20px;">ARMORY SHOP</div>
+              <div id="shop-subtitle" class="modal-subtitle" style="font-size: 11px;">Upgrade your gear, loadout & sound effects</div>
+            </div>
+            <div class="shop-balance">
+              <span>🪙</span>
+              <span id="shop-coin-display">0</span>
+            </div>
+          </div>
+
+          <!-- Tabs: Special Arrows | Bow Skins | Arrow Trails | Sound Packs -->
+          <div class="shop-tabs">
+            <button id="tab-ammo" class="shop-tab-btn active">AMMO</button>
+            <button id="tab-skins" class="shop-tab-btn">SKINS</button>
+            <button id="tab-trails" class="shop-tab-btn">TRAILS</button>
+            <button id="tab-sounds" class="shop-tab-btn">SOUNDS 🎵</button>
+          </div>
+
+          <!-- Tab Content Items -->
+          <div id="shop-items-list" class="shop-items-container">
+            <!-- Dynamically populated via JS -->
+          </div>
+
+          <button id="btn-close-shop" class="btn-primary">BACK TO GAME</button>
+        </div>
+      </div>
+
+      <!-- Settings Modal -->
+      <div id="modal-settings" class="modal-backdrop">
+        <div class="modal-card">
+          <div style="font-size: 34px;">⚙️</div>
+          <div id="settings-title" class="modal-title" style="font-size: 22px;">SETTINGS</div>
+          <div class="settings-list">
+            <!-- Language Setting Row -->
+            <div class="settings-row">
+              <div>
+                <div class="settings-label" id="setting-lang-label">Language / ভাষা</div>
+                <div class="settings-desc" id="setting-lang-desc">English / বাংলা</div>
+              </div>
+              <button id="btn-settings-lang" class="btn-preview" style="font-size: 11px; padding: 5px 12px; font-weight: 800;">
+                English (EN)
+              </button>
+            </div>
+            <div class="settings-row">
+              <div>
+                <div class="settings-label" id="label-setting-sound">Sound Effects</div>
+                <div class="settings-desc" id="desc-setting-sound">Procedural Web Audio FX</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="setting-sound" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="settings-row">
+              <div>
+                <div class="settings-label" id="label-setting-traj">Trajectory Guide Line</div>
+                <div class="settings-desc" id="desc-setting-traj">Show laser aiming line</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="setting-trajectory" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="settings-row">
+              <div>
+                <div class="settings-label" id="label-setting-shake">Screen Shake</div>
+                <div class="settings-desc" id="desc-setting-shake">Dynamic impact vibrations</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="setting-shake" checked />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+          <button id="btn-reset-data" class="btn-secondary" style="color: var(--danger); border-color: rgba(255, 42, 85, 0.4);">
+            RESET ALL SAVED PROGRESS
+          </button>
+          <button id="btn-close-settings" class="btn-primary">DONE</button>
+        </div>
+      </div>
+
+      <!-- Game Over Modal -->
+      <div id="modal-gameover" class="modal-backdrop">
+        <div class="modal-card">
+          <div style="font-size: 40px;">💥</div>
+          <div id="go-title" class="modal-title" style="background: linear-gradient(135deg, #fff 20%, var(--danger) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+            GAME OVER
+          </div>
+          <p id="gameover-reason" class="modal-subtitle">Arrow collided with an obstacle!</p>
+          <div class="stats-grid">
+            <div class="stat-box">
+              <span id="go-label-score" class="stat-box-label">FINAL SCORE</span>
+              <span id="go-score" class="stat-box-value">0</span>
+            </div>
+            <div class="stat-box">
+              <span id="go-label-level" class="stat-box-label">STAGE REACHED</span>
+              <span id="go-level" class="stat-box-value">1</span>
+            </div>
+            <div class="stat-box">
+              <span id="go-label-coins" class="stat-box-label">COINS EARNED</span>
+              <span id="go-coins-earned" class="stat-box-value" style="color: var(--gold);">+0 🪙</span>
+            </div>
+            <div class="stat-box">
+              <span id="go-label-high" class="stat-box-label">BEST RECORD</span>
+              <span id="go-high" class="stat-box-value">0</span>
+            </div>
+          </div>
+          <button id="btn-retry" class="btn-primary">RETRY STAGE</button>
+        </div>
+      </div>
+
+      <!-- Pause Modal -->
+      <div id="modal-pause" class="modal-backdrop">
+        <div class="modal-card">
+          <div style="font-size: 34px;">⏸️</div>
+          <div id="pause-title" class="modal-title">PAUSED</div>
+          <p id="pause-subtitle" class="modal-subtitle">Game is paused. Take a breath and check your loadout!</p>
+          <button id="btn-resume" class="btn-primary">RESUME</button>
+          <button id="btn-pause-shop" class="btn-secondary">ARMORY SHOP 🛍️</button>
+          <button id="btn-pause-restart" class="btn-secondary">RESTART LEVEL</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PURE VANILLA JAVASCRIPT LOGIC (NO EXTERNAL DEPENDENCIES) -->
+    <script>
+      /**
+       * ARROW GO! - Production-Ready Arcade Game Engine
+       * Implements:
+       * 1. In-game Economy, Persistent Inventory & Armory Shop (Ammo, Skins, Trails, Sound Packs)
+       * 2. Comprehensive Sound Engine with selectable customizable Sound Packs & live in-shop audio preview
+       * 3. Bug-free Collision & Boundary logic: arrows that miss or fly off-screen trigger a game-over failure, preventing false level clear
+       * 4. Multi-Phase Boss Fights every 5 levels with health bars
+       * 5. Concentric Dual Rings (Level 8+), Pulsing Wheel Radius (Level 12+), Breakable Shields
+       */
+
+      // ==========================================
+      // 1. PERSISTENCE & INVENTORY MANAGER
+      // ==========================================
+      const Storage = {
+        getCoins() {
+          return parseInt(localStorage.getItem('arrow_go_coins') || '0', 10);
+        },
+        setCoins(amt) {
+          localStorage.setItem('arrow_go_coins', amt.toString());
+        },
+        getHighScore() {
+          return parseInt(localStorage.getItem('arrow_go_highscore') || '0', 10);
+        },
+        setHighScore(amt) {
+          localStorage.setItem('arrow_go_highscore', amt.toString());
+        },
+        getInventory() {
+          try {
+            return JSON.parse(localStorage.getItem('arrow_go_inventory')) || { bomb: 1, slowmo: 1, ghost: 0 };
+          } catch(e) {
+            return { bomb: 1, slowmo: 1, ghost: 0 };
+          }
+        },
+        setInventory(inv) {
+          localStorage.setItem('arrow_go_inventory', JSON.stringify(inv));
+        },
+        getSkins() {
+          try {
+            const raw = localStorage.getItem('arrow_go_skins');
+            const parsed = raw ? JSON.parse(raw) : null;
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              if (!parsed.includes('classic')) parsed.unshift('classic');
+              return parsed;
+            }
+            return ['classic'];
+          } catch(e) {
+            return ['classic'];
+          }
+        },
+        setSkins(s) {
+          localStorage.setItem('arrow_go_skins', JSON.stringify(s));
+        },
+        getEquippedSkin() {
+          const skin = localStorage.getItem('arrow_go_equipped_skin');
+          return (skin && ['classic', 'neon', 'golden', 'dragon'].includes(skin)) ? skin : 'classic';
+        },
+        setEquippedSkin(skinId) {
+          const valid = ['classic', 'neon', 'golden', 'dragon'].includes(skinId) ? skinId : 'classic';
+          localStorage.setItem('arrow_go_equipped_skin', valid);
+        },
+        getTrails() {
+          try {
+            return JSON.parse(localStorage.getItem('arrow_go_trails')) || ['white'];
+          } catch(e) {
+            return ['white'];
+          }
+        },
+        setTrails(t) {
+          localStorage.setItem('arrow_go_trails', JSON.stringify(t));
+        },
+        getEquippedTrail() {
+          return localStorage.getItem('arrow_go_equipped_trail') || 'white';
+        },
+        setEquippedTrail(trailId) {
+          localStorage.setItem('arrow_go_equipped_trail', trailId);
+        },
+        getSoundPacks() {
+          try {
+            return JSON.parse(localStorage.getItem('arrow_go_sound_packs')) || ['retro'];
+          } catch(e) {
+            return ['retro'];
+          }
+        },
+        setSoundPacks(p) {
+          localStorage.setItem('arrow_go_sound_packs', JSON.stringify(p));
+        },
+        getEquippedSoundPack() {
+          return localStorage.getItem('arrow_go_equipped_sound') || 'retro';
+        },
+        setEquippedSoundPack(packId) {
+          localStorage.setItem('arrow_go_equipped_sound', packId);
+        },
+        getSettings() {
+          try {
+            return JSON.parse(localStorage.getItem('arrow_go_settings')) || { trajectory: true, shake: true };
+          } catch(e) {
+            return { trajectory: true, shake: true };
+          }
+        },
+        setSettings(cfg) {
+          localStorage.setItem('arrow_go_settings', JSON.stringify(cfg));
+        },
+        getLanguage() {
+          return localStorage.getItem('arrow_go_lang') || 'en';
+        },
+        setLanguage(lang) {
+          localStorage.setItem('arrow_go_lang', lang);
+        }
+      };
+
+      // ==========================================
+      // 2. AUDIO SYNTHESIS & SOUND PACKS ENGINE
+      // ==========================================
+      class SoundFX {
+        constructor() {
+          this.ctx = null;
+          this.muted = localStorage.getItem('arrow_go_muted') === 'true';
+        }
+
+        init() {
+          if (!this.ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) {
+              this.ctx = new AudioCtx();
+            }
+          }
+          if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume();
+          }
+        }
+
+        toggleMute() {
+          this.muted = !this.muted;
+          localStorage.setItem('arrow_go_muted', this.muted);
+          return this.muted;
+        }
+
+        getPack(overridePack = null) {
+          return overridePack || Storage.getEquippedSoundPack() || 'retro';
+        }
+
+        // Preview a sound pack in the shop
+        playPreview(packId) {
+          this.init();
+          if (!this.ctx) return;
+          // Play shoot sound followed by hit chime to give a complete sample
+          this.playShoot('normal', packId);
+          setTimeout(() => {
+            this.playHit(2, packId);
+          }, 150);
+        }
+
+        // Bow shoot twang & whoosh sound
+        playShoot(type = 'normal', overridePack = null) {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+          const t = this.ctx.currentTime;
+          const pack = this.getPack(overridePack);
+
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+
+          if (pack === 'cyber') {
+            // High-tech futuristic FM laser zap
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(1400, t);
+            osc.frequency.exponentialRampToValueAtTime(120, t + 0.12);
+            gain.gain.setValueAtTime(0.25, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+          } else if (pack === 'crystal') {
+            // Magical crystalline harp ping
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(1100, t);
+            osc.frequency.exponentialRampToValueAtTime(400, t + 0.18);
+            gain.gain.setValueAtTime(0.35, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+          } else if (pack === 'mecha') {
+            // Heavy metallic mechanical latch
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(280, t);
+            osc.frequency.exponentialRampToValueAtTime(45, t + 0.14);
+            gain.gain.setValueAtTime(0.3, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+          } else if (pack === 'edm') {
+            // Punchy sub-bass transient
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(320, t);
+            osc.frequency.exponentialRampToValueAtTime(40, t + 0.15);
+            gain.gain.setValueAtTime(0.45, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+          } else {
+            // Classic Retro 8-bit
+            osc.type = 'triangle';
+            if (type === 'bomb') {
+              osc.frequency.setValueAtTime(320, t);
+              osc.frequency.exponentialRampToValueAtTime(70, t + 0.16);
+            } else if (type === 'slowmo') {
+              osc.frequency.setValueAtTime(600, t);
+              osc.frequency.exponentialRampToValueAtTime(200, t + 0.22);
+            } else if (type === 'ghost') {
+              osc.frequency.setValueAtTime(800, t);
+              osc.frequency.exponentialRampToValueAtTime(400, t + 0.15);
+            } else {
+              osc.frequency.setValueAtTime(440, t);
+              osc.frequency.exponentialRampToValueAtTime(110, t + 0.12);
+            }
+            gain.gain.setValueAtTime(0.3, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+          }
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.22);
+
+          this.playNoiseWhoosh(t, 0.08, 0.14);
+        }
+
+        playNoiseWhoosh(startTime, duration, volume) {
+          const bufferSize = this.ctx.sampleRate * duration;
+          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+          }
+
+          const noise = this.ctx.createBufferSource();
+          noise.buffer = buffer;
+
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.setValueAtTime(1800, startTime);
+          filter.frequency.exponentialRampToValueAtTime(600, startTime + duration);
+          filter.Q.value = 3.0;
+
+          const gain = this.ctx.createGain();
+          gain.gain.setValueAtTime(volume, startTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+          noise.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          noise.start(startTime);
+          noise.stop(startTime + duration);
+        }
+
+        // Target hit crystalline ping with combo frequency scaling
+        playHit(combo = 1, overridePack = null) {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+          const t = this.ctx.currentTime;
+          const pack = this.getPack(overridePack);
+
+          const baseFreq = Math.min(1500, 520 + (combo - 1) * 60);
+
+          if (pack === 'cyber') {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(baseFreq * 1.5, t);
+            osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.7, t + 0.16);
+            gain.gain.setValueAtTime(0.28, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.17);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(t);
+            osc.stop(t + 0.18);
+          } else if (pack === 'crystal') {
+            const osc1 = this.ctx.createOscillator();
+            const osc2 = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(baseFreq * 2.0, t);
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(baseFreq * 3.0, t);
+            gain.gain.setValueAtTime(0.35, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+            osc1.connect(gain);
+            osc2.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc1.start(t);
+            osc2.start(t);
+            osc1.stop(t + 0.32);
+            osc2.stop(t + 0.32);
+          } else if (pack === 'mecha') {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(680, t);
+            osc.frequency.exponentialRampToValueAtTime(140, t + 0.18);
+            gain.gain.setValueAtTime(0.35, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(t);
+            osc.stop(t + 0.22);
+          } else if (pack === 'edm') {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(baseFreq * 1.8, t);
+            osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.5, t + 0.14);
+            gain.gain.setValueAtTime(0.4, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(t);
+            osc.stop(t + 0.18);
+          } else {
+            // Retro 8-bit
+            const osc1 = this.ctx.createOscillator();
+            const osc2 = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(baseFreq, t);
+            osc2.type = 'triangle';
+            osc2.frequency.setValueAtTime(baseFreq * 2.01, t);
+            gain.gain.setValueAtTime(0.35, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+            osc1.connect(gain);
+            osc2.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc1.start(t);
+            osc2.start(t);
+            osc1.stop(t + 0.2);
+            osc2.stop(t + 0.2);
+          }
+        }
+
+        // Bomb explosion
+        playBombExplosion() {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+          const t = this.ctx.currentTime;
+
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(180, t);
+          osc.frequency.exponentialRampToValueAtTime(30, t + 0.45);
+
+          gain.gain.setValueAtTime(0.55, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.48);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.5);
+
+          this.playNoiseWhoosh(t, 0.4, 0.45);
+        }
+
+        // Slow-Mo time warp whoosh
+        playSlowMoWarp() {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+          const t = this.ctx.currentTime;
+
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(800, t);
+          osc.frequency.exponentialRampToValueAtTime(120, t + 0.6);
+
+          gain.gain.setValueAtTime(0.35, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.7);
+        }
+
+        // Coin ding pickup sound
+        playCoin() {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+          const t = this.ctx.currentTime;
+
+          [987.77, 1318.51].forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            const start = t + idx * 0.07;
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, start);
+
+            gain.gain.setValueAtTime(0.2, start);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + 0.15);
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(start);
+            osc.stop(start + 0.16);
+          });
+        }
+
+        // Shield crack & shatter sound
+        playShieldCrack(shattered = false) {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+          const t = this.ctx.currentTime;
+
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(shattered ? 450 : 250, t);
+          osc.frequency.exponentialRampToValueAtTime(80, t + 0.15);
+
+          gain.gain.setValueAtTime(0.25, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.2);
+        }
+
+        // Level Win celebratory fanfare chord
+        playWin(isBoss = false) {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+          const t = this.ctx.currentTime;
+          const pack = this.getPack();
+          const notes = isBoss ? [440, 554.37, 659.25, 880, 1108.73] : [523.25, 659.25, 783.99, 1046.50];
+
+          notes.forEach((freq, i) => {
+            const noteStart = t + i * 0.08;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = (pack === 'mecha' || pack === 'retro') ? 'triangle' : 'sine';
+            osc.frequency.setValueAtTime(freq, noteStart);
+
+            gain.gain.setValueAtTime(0.25, noteStart);
+            gain.gain.exponentialRampToValueAtTime(0.001, noteStart + 0.35);
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(noteStart);
+            osc.stop(noteStart + 0.38);
+          });
+        }
+
+        // Game Over crunch impact
+        playGameOver() {
+          if (this.muted) return;
+          this.init();
+          if (!this.ctx) return;
+          const t = this.ctx.currentTime;
+
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(260, t);
+          osc.frequency.exponentialRampToValueAtTime(35, t + 0.35);
+
+          gain.gain.setValueAtTime(0.45, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.4);
+
+          this.playNoiseWhoosh(t, 0.28, 0.4);
+        }
+      }
+
+      // ==========================================
+      // 3. THEMES & VISUAL PALETTES
+      // ==========================================
+      const THEMES = [
+        {
+          name: 'Cyberpunk Neon',
+          bg: '#080a12',
+          wheelRim: '#00f0ff',
+          wheelCore: '#0e1628',
+          wheelAccent: '#ff0077',
+          arrowColor: '#00f0ff',
+          arrowHead: '#ffffff',
+          obstacle: '#ff2a55',
+          particles: ['#00f0ff', '#ff0077', '#ffffff']
+        },
+        {
+          name: 'Neon Magma',
+          bg: '#0d070a',
+          wheelRim: '#ff8800',
+          wheelCore: '#1e0e12',
+          wheelAccent: '#ff2244',
+          arrowColor: '#ffaa00',
+          arrowHead: '#fff4cc',
+          obstacle: '#ff0044',
+          particles: ['#ff8800', '#ff2244', '#ffe600']
+        },
+        {
+          name: 'Emerald Matrix',
+          bg: '#060d0b',
+          wheelRim: '#00ffaa',
+          wheelCore: '#081c15',
+          wheelAccent: '#a3ff00',
+          arrowColor: '#00ffaa',
+          arrowHead: '#e6fff5',
+          obstacle: '#ff3366',
+          particles: ['#00ffaa', '#a3ff00', '#ffffff']
+        },
+        {
+          name: 'Sunset Vaporwave',
+          bg: '#0d0718',
+          wheelRim: '#f72585',
+          wheelCore: '#190e2b',
+          wheelAccent: '#ffb703',
+          arrowColor: '#4cc9f0',
+          arrowHead: '#ffffff',
+          obstacle: '#ff0055',
+          particles: ['#f72585', '#ffb703', '#4cc9f0']
+        },
+        {
+          name: 'Astral Void',
+          bg: '#05050a',
+          wheelRim: '#7928ca',
+          wheelCore: '#100f24',
+          wheelAccent: '#00dfd8',
+          arrowColor: '#00dfd8',
+          arrowHead: '#ffffff',
+          obstacle: '#ff007f',
+          particles: ['#7928ca', '#00dfd8', '#ffffff']
+        }
+      ];
+
+      function getThemeForLevel(level) {
+        if (level % 5 === 0) {
+          return {
+            name: 'Boss Overload',
+            bg: '#12050b',
+            wheelRim: '#ff0055',
+            wheelCore: '#220814',
+            wheelAccent: '#ffe600',
+            arrowColor: '#ff0055',
+            arrowHead: '#ffffff',
+            obstacle: '#ff5500',
+            particles: ['#ff0055', '#ffe600', '#ffffff', '#ff2200']
+          };
+        }
+        const index = Math.floor((level - 1) / 5) % THEMES.length;
+        return THEMES[index];
+      }
+
+      // ==========================================
+      // 4. GAME STATE & VARIABLES
+      // ==========================================
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+      const sound = new SoundFX();
+
+      // UI Elements
+      const levelInd = document.getElementById('level-indicator');
+      const comboInd = document.getElementById('combo-indicator');
+      const scoreVal = document.getElementById('score-val');
+      const highScoreVal = document.getElementById('high-score-val');
+      const coinCounter = document.getElementById('coin-counter');
+      const quiverNum = document.getElementById('quiver-num');
+      const quiverRack = document.getElementById('quiver-rack');
+      const flashOverlay = document.getElementById('flash-overlay');
+      const levelToast = document.getElementById('level-clear-toast');
+      const levelClearTitle = document.getElementById('level-clear-title');
+      const levelBonus = document.getElementById('level-clear-bonus');
+      const bossHealthBar = document.getElementById('boss-health-bar');
+      const bossNameEl = document.getElementById('boss-name');
+      const bossHpText = document.getElementById('boss-hp-text');
+      const bossHealthFill = document.getElementById('boss-health-fill');
+
+      // Modals
+      const modalStart = document.getElementById('modal-start');
+      const modalGameOver = document.getElementById('modal-gameover');
+      const modalPause = document.getElementById('modal-pause');
+      const modalShop = document.getElementById('modal-shop');
+      const modalSettings = document.getElementById('modal-settings');
+      const startHighScore = document.getElementById('start-high-score');
+      const startCoins = document.getElementById('start-coins');
+      const shopCoinDisplay = document.getElementById('shop-coin-display');
+      const shopItemsList = document.getElementById('shop-items-list');
+
+      // Game Over elements
+      const goScore = document.getElementById('go-score');
+      const goLevel = document.getElementById('go-level');
+      const goCoinsEarned = document.getElementById('go-coins-earned');
+      const goHigh = document.getElementById('go-high');
+      const goReason = document.getElementById('gameover-reason');
+
+      // Ammo HUD buttons
+      const ammoBtnNormal = document.getElementById('ammo-normal');
+      const ammoBtnBomb = document.getElementById('ammo-bomb');
+      const ammoBtnSlowmo = document.getElementById('ammo-slowmo');
+      const ammoBtnGhost = document.getElementById('ammo-ghost');
+      const countBomb = document.getElementById('count-bomb');
+      const countSlowmo = document.getElementById('count-slowmo');
+      const countGhost = document.getElementById('count-ghost');
+
+      // Buttons
+      const btnAudio = document.getElementById('btn-audio');
+      const svgAudioOn = document.getElementById('svg-audio-on');
+      const svgAudioOff = document.getElementById('svg-audio-off');
+      const btnPause = document.getElementById('btn-pause');
+      const btnResume = document.getElementById('btn-resume');
+      const btnPauseRestart = document.getElementById('btn-pause-restart');
+      const btnStartPlay = document.getElementById('btn-start-play');
+      const btnStartShop = document.getElementById('btn-start-shop');
+      const btnOpenShopBadge = document.getElementById('btn-open-shop-badge');
+      const btnShop = document.getElementById('btn-shop');
+      const btnCloseShop = document.getElementById('btn-close-shop');
+      const btnPauseShop = document.getElementById('btn-pause-shop');
+      const btnSettings = document.getElementById('btn-settings');
+      const btnCloseSettings = document.getElementById('btn-close-settings');
+      const btnResetData = document.getElementById('btn-reset-data');
+      const btnRetry = document.getElementById('btn-retry');
+      const btnRestartOne = document.getElementById('btn-restart-one');
+      const btnLang = document.getElementById('btn-lang');
+      const btnSettingsLang = document.getElementById('btn-settings-lang');
+      const labelHighScore = document.getElementById('label-high-score');
+      const quiverLabelText = document.getElementById('quiver-label-text');
+
+      // Settings checkboxes
+      const settingSound = document.getElementById('setting-sound');
+      const settingTrajectory = document.getElementById('setting-trajectory');
+      const settingShake = document.getElementById('setting-shake');
+
+      // Shop Tab buttons
+      const tabAmmo = document.getElementById('tab-ammo');
+      const tabSkins = document.getElementById('tab-skins');
+      const tabTrails = document.getElementById('tab-trails');
+      const tabSounds = document.getElementById('tab-sounds');
+      let currentShopTab = 'ammo';
+
+      // Economy & Progression State
+      let playerCoins = Storage.getCoins();
+      let inventory = Storage.getInventory();
+      let unlockedSkins = Storage.getSkins();
+      let equippedSkin = Storage.getEquippedSkin();
+      let unlockedTrails = Storage.getTrails();
+      let equippedTrail = Storage.getEquippedTrail();
+      let unlockedSoundPacks = Storage.getSoundPacks();
+      let equippedSoundPack = Storage.getEquippedSoundPack();
+      let userSettings = Storage.getSettings();
+      let currentLang = Storage.getLanguage();
+
+      // ==========================================
+      // 4.5. INTERNATIONALIZATION (I18N: EN & BN)
+      // ==========================================
+      const I18N = {
+        en: {
+          langBtn: 'BN',
+          langSettingsBtn: 'English (EN)',
+          // HUD
+          stage: 'STAGE',
+          bossStage: 'BOSS STAGE',
+          combo: 'COMBO',
+          best: 'BEST',
+          arrows: 'ARROWS',
+          boss: 'BOSS',
+          bossBattle: '★ BOSS BATTLE ★',
+          bossPrefix: 'BOSS',
+          // Ammo Tooltips
+          ammoNormalTitle: 'Standard Arrow (Hotkey: 1) • Free / Unlimited',
+          ammoBombTitle: 'Bomb Arrow (Clears area on hit) (Hotkey: 2) • Price: 🪙150',
+          ammoSlowmoTitle: 'Slow-Mo Arrow (50% speed for 5s) (Hotkey: 3) • Price: 🪙120',
+          ammoGhostTitle: 'Ghost Arrow (Phases through pins) (Hotkey: 4) • Price: 🪙220',
+          // Start Modal
+          startTitle: 'ARROW GO!',
+          startSubtitle: 'Time your shots into the dynamic spinning wheel. Conquer boss fights, collect coins, and unlock powerful special arrows, skins, and sound packs!',
+          allTimeHigh: 'ALL-TIME HIGH',
+          coinsAvailable: 'COINS AVAILABLE',
+          playGame: 'PLAY GAME',
+          openShop: 'OPEN ARMORY SHOP 🛍️',
+          // Pause Modal
+          pauseTitle: 'PAUSED',
+          pauseSubtitle: 'Game is paused. Take a breath and check your loadout!',
+          resume: 'RESUME',
+          pauseShop: 'ARMORY SHOP 🛍️',
+          restartLevel: 'RESTART LEVEL',
+          // Settings Modal
+          settingsTitle: 'SETTINGS',
+          settingLangLabel: 'Language / ভাষা',
+          settingLangDesc: 'English / বাংলা',
+          settingSoundLabel: 'Sound Effects',
+          settingSoundDesc: 'Procedural Web Audio FX',
+          settingTrajLabel: 'Trajectory Guide Line',
+          settingTrajDesc: 'Show laser aiming line',
+          settingShakeLabel: 'Screen Shake',
+          settingShakeDesc: 'Dynamic impact vibrations',
+          resetProgress: 'RESET ALL SAVED PROGRESS',
+          resetConfirm: '⚠️ TAP AGAIN TO CONFIRM RESET',
+          done: 'DONE',
+          progressResetTitle: 'PROGRESS RESET',
+          progressResetDesc: 'All coins, stats & armory reset!',
+          // Game Over Modal
+          gameOverTitle: 'GAME OVER',
+          finalScore: 'FINAL SCORE',
+          stageReached: 'STAGE REACHED',
+          coinsEarned: 'COINS EARNED',
+          totalCoins: 'WALLET TOTAL',
+          bestRecord: 'BEST RECORD',
+          retryStage: 'RETRY STAGE',
+          // Fail Reasons
+          reasonMiss: 'Arrow missed the target wheel!',
+          reasonRunOut: 'Ran out of arrows before clearing stage!',
+          reasonShield: 'Hit an Energy Shield!',
+          reasonSpike: 'Deflected by a Hazard Spike!',
+          reasonPin: 'Hit an existing Pinned Arrow!',
+          // Toasts
+          stageCleared: 'STAGE CLEARED!',
+          bossDestroyed: 'BOSS DESTROYED!',
+          bossReward: 'BOSS REWARD',
+          // Shop Modal
+          shopTitle: 'ARMORY SHOP',
+          shopSubtitle: 'Upgrade your gear, loadout & sound effects',
+          tabAmmo: 'AMMO',
+          tabSkins: 'SKINS',
+          tabTrails: 'TRAILS',
+          tabSounds: 'SOUNDS 🎵',
+          buy: 'BUY',
+          unlock: 'UNLOCK',
+          equip: 'EQUIP',
+          equipped: 'EQUIPPED',
+          preview: '▶ PREVIEW',
+          owned: 'Owned:',
+          backToGame: 'BACK TO GAME'
+        },
+        bn: {
+          langBtn: 'EN',
+          langSettingsBtn: 'বাংলা (BN)',
+          // HUD
+          stage: 'লেভেল',
+          bossStage: 'বস লেভেল',
+          combo: 'কম্বো',
+          best: 'সেরা',
+          arrows: 'তীর',
+          boss: 'বস',
+          bossBattle: '★ বস যুদ্ধ ★',
+          bossPrefix: 'বস',
+          // Ammo Tooltips
+          ammoNormalTitle: 'সাধারণ তীর (হটকি: ১) • বিনামূল্যে / সীমাহীন',
+          ammoBombTitle: 'বোমা তীর (আঘাতে এলাকা ধ্বংস করে) (হটকি: ২) • মূল্য: 🪙১৫০',
+          ammoSlowmoTitle: 'স্লো-মো তীর (৫ সেকেন্ডের জন্য ৫০% গতি) (হটকি: ৩) • মূল্য: 🪙১২০',
+          ammoGhostTitle: 'ভূতুড়ে তীর (বাধা ভেদ করে যায়) (হটকি: ৪) • মূল্য: 🪙২২০',
+          // Start Modal
+          startTitle: 'অ্যারো গো!',
+          startSubtitle: 'ঘূর্ণায়মান চাকায় সময়মতো তীর ছুড়ুন। বসদের পরাস্ত করুন, কয়েন সংগ্রহ করুন এবং বিশেষ তীর, স্কিন ও সাউন্ড প্যাক আনলক করুন!',
+          allTimeHigh: 'সর্বোচ্চ রেকর্ড',
+          coinsAvailable: 'বিদ্যমান কয়েন',
+          playGame: 'খেলা শুরু করুন',
+          openShop: 'অস্ত্রাগার শপ খুলুন 🛍️',
+          // Pause Modal
+          pauseTitle: 'খেলা স্থগিত',
+          pauseSubtitle: 'খেলা সাময়িক স্থগিত আছে। একটু বিশ্রাম নিন ও প্রস্তুতি দেখুন!',
+          resume: 'চালিয়ে যান',
+          pauseShop: 'অস্ত্রাগার শপ 🛍️',
+          restartLevel: 'লেভেল পুনরায় শুরু',
+          // Settings Modal
+          settingsTitle: 'সেটিংস',
+          settingLangLabel: 'ভাষা / Language',
+          settingLangDesc: 'বাংলা / English',
+          settingSoundLabel: 'সাউন্ড এফেক্টস',
+          settingSoundDesc: 'প্রক্রিয়াভিত্তিক ওয়েব অডিও',
+          settingTrajLabel: 'লক্ষ্যরেখা গাইড',
+          settingTrajDesc: 'লেজার নিশানা রেখা দেখান',
+          settingShakeLabel: 'স্ক্রিন ঝাঁকুনি',
+          settingShakeDesc: 'গতিশীল আঘাতের কম্পন',
+          resetProgress: 'সংরক্ষিত সমস্ত অগ্রগতি রিসেট করুন',
+          resetConfirm: '⚠️ নিশ্চিত করতে পুনরায় ট্যাপ করুন',
+          done: 'সম্পন্ন',
+          progressResetTitle: 'অগ্রগতি রিসেট',
+          progressResetDesc: 'সব কয়েন, পরিসংখ্যান ও অস্ত্রাগার রিসেট হয়েছে!',
+          // Game Over Modal
+          gameOverTitle: 'খেলা শেষ',
+          finalScore: 'চূড়ান্ত স্কোর',
+          stageReached: 'অর্জিত লেভেল',
+          coinsEarned: 'অর্জিত কয়েন',
+          totalCoins: 'মোট ব্যালেন্স',
+          bestRecord: 'সেরা রেকর্ড',
+          retryStage: 'পুনরায় চেষ্টা করুন',
+          // Fail Reasons
+          reasonMiss: 'তীর লক্ষ্যবস্তু চাকা মিস করেছে!',
+          reasonRunOut: 'লেভেল শেষ করার আগেই তীর শেষ হয়ে গেছে!',
+          reasonShield: 'শক্তি ঢালে আঘাত লেগেছে!',
+          reasonSpike: 'বিপজ্জনক কাঁটায় আঘাত লেগেছে!',
+          reasonPin: 'আগে থেকে থাকা তীরে ধাক্কা খেয়েছে!',
+          // Toasts
+          stageCleared: 'লেভেল সম্পন্ন!',
+          bossDestroyed: 'বস পরাজিত!',
+          bossReward: 'বস পুরস্কার',
+          // Shop Modal
+          shopTitle: 'অস্ত্রাগার শপ',
+          shopSubtitle: 'গিয়ার, তীর এবং সাউন্ড এফেক্ট উন্নত করুন',
+          tabAmmo: 'গোলাবারুদ',
+          tabSkins: 'স্কিন',
+          tabTrails: 'ট্রেইল',
+          tabSounds: 'সাউন্ড 🎵',
+          buy: 'কিনুন',
+          unlock: 'আনলক',
+          equip: 'ব্যবহার করুন',
+          equipped: 'ব্যবহৃত হচ্ছে',
+          preview: '▶ শুনুন',
+          owned: 'মালিকানা:',
+          backToGame: 'খেলায় ফিরে যান'
+        }
+      };
+
+      function t(key) {
+        const dict = I18N[currentLang] || I18N.en;
+        return dict[key] !== undefined ? dict[key] : (I18N.en[key] !== undefined ? I18N.en[key] : key);
+      }
+
+      function getItemText(item, field) {
+        if (!item || !item[field]) return '';
+        if (typeof item[field] === 'object') {
+          return item[field][currentLang] || item[field].en || '';
+        }
+        return item[field];
+      }
+
+      function getTranslatedReason(reason) {
+        const dict = I18N[currentLang] || I18N.en;
+        if (reason === 'Arrow missed the target wheel!') return dict.reasonMiss;
+        if (reason === 'Ran out of arrows before clearing stage!') return dict.reasonRunOut;
+        if (reason === 'Hit an Energy Shield!') return dict.reasonShield;
+        if (reason === 'Deflected by a Hazard Spike!') return dict.reasonSpike;
+        if (reason === 'Hit an existing Pinned Arrow!') return dict.reasonPin;
+        return reason;
+      }
+
+      function applyTranslations() {
+        const trans = I18N[currentLang] || I18N.en;
+
+        if (btnLang) {
+          btnLang.textContent = currentLang === 'en' ? 'BN' : 'EN';
+          btnLang.title = currentLang === 'en' ? 'বাংলা ভাষায় পরিবর্তন করুন' : 'Switch to English';
+        }
+        if (btnSettingsLang) {
+          btnSettingsLang.textContent = trans.langSettingsBtn;
+        }
+
+        if (labelHighScore) labelHighScore.textContent = trans.best;
+        if (quiverLabelText) quiverLabelText.textContent = trans.arrows;
+
+        if (ammoBtnNormal) ammoBtnNormal.title = trans.ammoNormalTitle;
+        if (ammoBtnBomb) ammoBtnBomb.title = trans.ammoBombTitle;
+        if (ammoBtnSlowmo) ammoBtnSlowmo.title = trans.ammoSlowmoTitle;
+        if (ammoBtnGhost) ammoBtnGhost.title = trans.ammoGhostTitle;
+
+        const startTitleEl = document.getElementById('start-title');
+        if (startTitleEl) startTitleEl.textContent = trans.startTitle;
+        const startSubtitleEl = document.getElementById('start-subtitle');
+        if (startSubtitleEl) startSubtitleEl.textContent = trans.startSubtitle;
+        const startHighLabelEl = document.getElementById('start-high-label');
+        if (startHighLabelEl) startHighLabelEl.textContent = trans.allTimeHigh;
+        const startCoinsLabelEl = document.getElementById('start-coins-label');
+        if (startCoinsLabelEl) startCoinsLabelEl.textContent = trans.coinsAvailable;
+        if (btnStartPlay) btnStartPlay.textContent = trans.playGame;
+        if (btnStartShop) btnStartShop.textContent = trans.openShop;
+
+        const pauseTitleEl = document.getElementById('pause-title');
+        if (pauseTitleEl) pauseTitleEl.textContent = trans.pauseTitle;
+        const pauseSubtitleEl = document.getElementById('pause-subtitle');
+        if (pauseSubtitleEl) pauseSubtitleEl.textContent = trans.pauseSubtitle;
+        if (btnResume) btnResume.textContent = trans.resume;
+        if (btnPauseShop) btnPauseShop.textContent = trans.pauseShop;
+        if (btnPauseRestart) btnPauseRestart.textContent = trans.restartLevel;
+
+        const settingsTitleEl = document.getElementById('settings-title');
+        if (settingsTitleEl) settingsTitleEl.textContent = trans.settingsTitle;
+        const settingLangLabelEl = document.getElementById('setting-lang-label');
+        if (settingLangLabelEl) settingLangLabelEl.textContent = trans.settingLangLabel;
+        const settingLangDescEl = document.getElementById('setting-lang-desc');
+        if (settingLangDescEl) settingLangDescEl.textContent = trans.settingLangDesc;
+        const labelSettingSoundEl = document.getElementById('label-setting-sound');
+        if (labelSettingSoundEl) labelSettingSoundEl.textContent = trans.settingSoundLabel;
+        const descSettingSoundEl = document.getElementById('desc-setting-sound');
+        if (descSettingSoundEl) descSettingSoundEl.textContent = trans.settingSoundDesc;
+        const labelSettingTrajEl = document.getElementById('label-setting-traj');
+        if (labelSettingTrajEl) labelSettingTrajEl.textContent = trans.settingTrajLabel;
+        const descSettingTrajEl = document.getElementById('desc-setting-traj');
+        if (descSettingTrajEl) descSettingTrajEl.textContent = trans.settingTrajDesc;
+        const labelSettingShakeEl = document.getElementById('label-setting-shake');
+        if (labelSettingShakeEl) labelSettingShakeEl.textContent = trans.settingShakeLabel;
+        const descSettingShakeEl = document.getElementById('desc-setting-shake');
+        if (descSettingShakeEl) descSettingShakeEl.textContent = trans.settingShakeDesc;
+        if (btnResetData && !btnResetData.classList.contains('confirming')) {
+          btnResetData.textContent = trans.resetProgress;
+        }
+        if (btnCloseSettings) btnCloseSettings.textContent = trans.done;
+
+        const goTitleEl = document.getElementById('go-title');
+        if (goTitleEl) goTitleEl.textContent = trans.gameOverTitle;
+        const goLabelScoreEl = document.getElementById('go-label-score');
+        if (goLabelScoreEl) goLabelScoreEl.textContent = trans.finalScore;
+        const goLabelLevelEl = document.getElementById('go-label-level');
+        if (goLabelLevelEl) goLabelLevelEl.textContent = trans.stageReached;
+        const goLabelCoinsEl = document.getElementById('go-label-coins');
+        if (goLabelCoinsEl) goLabelCoinsEl.textContent = trans.coinsEarned;
+        const goLabelHighEl = document.getElementById('go-label-high');
+        if (goLabelHighEl) goLabelHighEl.textContent = trans.bestRecord;
+        if (btnRetry) btnRetry.textContent = trans.retryStage;
+
+        const shopTitleEl = document.getElementById('shop-title');
+        if (shopTitleEl) shopTitleEl.textContent = trans.shopTitle;
+        const shopSubtitleEl = document.getElementById('shop-subtitle');
+        if (shopSubtitleEl) shopSubtitleEl.textContent = trans.shopSubtitle;
+        if (tabAmmo) tabAmmo.textContent = trans.tabAmmo;
+        if (tabSkins) tabSkins.textContent = trans.tabSkins;
+        if (tabTrails) tabTrails.textContent = trans.tabTrails;
+        if (tabSounds) tabSounds.textContent = trans.tabSounds;
+        if (btnCloseShop) btnCloseShop.textContent = trans.backToGame;
+      }
+
+      function setLanguage(lang) {
+        currentLang = lang === 'bn' ? 'bn' : 'en';
+        Storage.setLanguage(currentLang);
+        applyTranslations();
+        updateHUD();
+        if (isBossLevel) {
+          const bossNamesEN = ['CYBER TITAN MK-I', 'INFERNO BEHEMOTH', 'MATRIX CHIMERA', 'VOID OVERLORD', 'OMEGA APEX'];
+          const bossNamesBN = ['সাইবার টাইটান MK-I', 'ইনফার্নো বেহেমথ', 'ম্যাট্রিক্স কাইমেরা', 'ভয়েড ওভারলর্ড', 'ওমেগা অ্যাপেক্স'];
+          const bIdx = Math.min(bossNamesEN.length - 1, Math.floor(currentLevel / 5) - 1);
+          const bName = currentLang === 'bn' ? bossNamesBN[bIdx] : bossNamesEN[bIdx];
+          bossNameEl.textContent = `${t('bossPrefix')}: ${bName}`;
+        }
+        if (modalShop.classList.contains('show')) {
+          renderShopTab();
+        }
+      }
+
+      // Active selected arrow type
+      let selectedArrowType = 'normal';
+
+      // Game Stats
+      let currentLevel = 1;
+      let score = 0;
+      let highScore = Storage.getHighScore();
+      let sessionCoinsEarned = 0;
+      let runCoinsEarned = 0;
+      let arrowsRemaining = 5;
+      let totalLevelArrows = 5;
+      let successfulHitsInLevel = 0;
+
+      function getSkinStyle(skinId = equippedSkin) {
+        if (skinId === 'golden') {
+          return {
+            id: 'golden',
+            bowColor: '#ffd700',
+            bowGlow: '#ffd700',
+            bowWidth: 6.5,
+            gemColor: '#ff0055',
+            arrowShaftColor: '#ffe866',
+            arrowGlow: '#ffd700',
+            arrowHeadColor: '#ffffff',
+            arrowFletchColor: '#ffbb00',
+            auraColor: 'rgba(255, 215, 0, 0.5)'
+          };
+        } else if (skinId === 'dragon') {
+          return {
+            id: 'dragon',
+            bowColor: '#ff3300',
+            bowGlow: '#ff1100',
+            bowWidth: 7,
+            gemColor: '#ffe600',
+            arrowShaftColor: '#ff5522',
+            arrowGlow: '#ff2200',
+            arrowHeadColor: '#ffffaa',
+            arrowFletchColor: '#ff2200',
+            auraColor: 'rgba(255, 50, 0, 0.5)'
+          };
+        } else if (skinId === 'neon') {
+          return {
+            id: 'neon',
+            bowColor: '#00f0ff',
+            bowGlow: '#00f0ff',
+            bowWidth: 6,
+            gemColor: '#ff0077',
+            arrowShaftColor: '#00f0ff',
+            arrowGlow: '#ff0077',
+            arrowHeadColor: '#ffffff',
+            arrowFletchColor: '#ff0077',
+            auraColor: 'rgba(0, 240, 255, 0.5)'
+          };
+        } else {
+          return {
+            id: 'classic',
+            bowColor: '#c48b59',
+            bowGlow: 'rgba(160, 100, 50, 0.35)',
+            bowWidth: 5,
+            gemColor: '#5c3317',
+            arrowShaftColor: '#ffffff',
+            arrowGlow: 'rgba(255, 255, 255, 0.4)',
+            arrowHeadColor: '#ffffff',
+            arrowFletchColor: '#96a5b8',
+            auraColor: 'rgba(255, 255, 255, 0.25)'
+          };
+        }
+      }
+      let totalHitsGame = 0;
+      let comboStreak = 0;
+      let isPaused = false;
+      let isGameOver = false;
+      let isGameStarted = false;
+      let isLevelTransitioning = false;
+
+      // Boss Fight State
+      let isBossLevel = false;
+      let bossMaxHp = 10;
+      let bossCurrentHp = 10;
+      let bossPhase = 1;
+
+      // Screen shake and flash state
+      let screenShake = 0;
+      let flashAlpha = 0;
+      let flashColor = 'rgba(255, 42, 85, ';
+
+      // Virtual Canvas Dimensions
+      let width = window.innerWidth;
+      let height = window.innerHeight;
+      let dpr = window.devicePixelRatio || 1;
+
+      // Target Wheel State
+      const wheel = {
+        x: 0,
+        y: 0,
+        baseRadius: 75,
+        radius: 75,
+        rotation: 0,
+        baseSpeed: 1.5,
+        direction: 1,
+        targetDirection: 1,
+        switchProbability: 0.1,
+        switchTimer: 0,
+        switchInterval: 2.2,
+        directionTransition: 1.0,
+        pulsePhase: 0,
+        reversalWarning: 0,
+        slowMoTimer: 0,
+        hasDualRing: false,
+        dualRingRotation: 0,
+        dualRingSpeed: -1.2,
+        goldenTargets: [],
+        theme: THEMES[0]
+      };
+
+      // Archer & Bow State
+      const archer = {
+        x: 0,
+        y: 0,
+        angle: -Math.PI / 2,
+        targetAngle: -Math.PI / 2,
+        isAiming: false,
+        bowStringPull: 0,
+        recoilOffset: 0,
+        lastShotTime: 0,
+        cooldown: 0.2
+      };
+
+      // Collection Arrays
+      let inFlightArrows = [];
+      let pinnedArrows = [];
+      let particles = [];
+      let shockwaves = [];
+      let starfield = [];
+
+      // ==========================================
+      // 5. SHOP CATALOG (AMMO, SKINS, TRAILS, SOUNDS)
+      // Multilingual support for English & Bengali
+      // ==========================================
+      const SHOP_CATALOG = {
+        ammo: [
+          {
+            id: 'bomb',
+            name: { en: 'Bomb Arrow', bn: 'বোমা তীর' },
+            icon: '💣',
+            price: 150,
+            desc: {
+              en: 'Clears all obstacles & stuck arrows in an explosion radius upon impact.',
+              bn: 'আঘাতের সাথে সাথে বিস্ফোরিত হয়ে চারপাশের তীর ও ঢাল ধ্বংস করে।'
+            }
+          },
+          {
+            id: 'slowmo',
+            name: { en: 'Slow-Mo Arrow', bn: 'স্লো-মো তীর' },
+            icon: '⏱️',
+            price: 120,
+            desc: {
+              en: 'Slows down target wheel rotation by 50% for 5 seconds.',
+              bn: '৫ সেকেন্ডের জন্য চাকার ঘূর্ণন গতি ৫০% কমিয়ে দেয়।'
+            }
+          },
+          {
+            id: 'ghost',
+            name: { en: 'Ghost Arrow', bn: 'ভূতুড়ে তীর' },
+            icon: '👻',
+            price: 220,
+            desc: {
+              en: 'Phases directly through pinned arrows & shields without collision!',
+              bn: 'কোনো ধাক্কা ছাড়াই পিন করা তীর ও ঢাল ভেদ করে চলে যায়!'
+            }
+          }
+        ],
+        skins: [
+          {
+            id: 'classic',
+            name: { en: 'Classic Wooden', bn: 'ক্লাসিক কাঠের' },
+            icon: '🪵',
+            price: 0,
+            desc: {
+              en: 'Crafted from aged oak with refined leather grip.',
+              bn: 'উন্নত চামড়ার গ্রিপসহ পুরনো ওক কাঠের তৈরি।'
+            }
+          },
+          {
+            id: 'neon',
+            name: { en: 'Neon Cyberpunk', bn: 'নিয়ন সাইবারপাঙ্ক' },
+            icon: '⚡',
+            price: 300,
+            desc: {
+              en: 'Electroluminescent limbs glowing in cyan and hot pink.',
+              bn: 'সায়ান এবং গোলাপি রঙে উজ্জ্বল বিদ্যুতায়িত ধনুক।'
+            }
+          },
+          {
+            id: 'golden',
+            name: { en: 'Golden Monarch', bn: 'গোল্ডেন মোনার্ক' },
+            icon: '👑',
+            price: 700,
+            desc: {
+              en: 'Pure polished bullion with radiant spark particle aura.',
+              bn: 'উজ্জ্বল স্ফুলিঙ্গ কণার আলোকছটাসহ খাঁটি পালিশ করা সোনা।'
+            }
+          },
+          {
+            id: 'dragon',
+            name: { en: 'Dragon Slayer', bn: 'ড্রাগন স্লেয়ার' },
+            icon: '🐉',
+            price: 1200,
+            desc: {
+              en: 'Forged from obsidian drake scales with blazing flame aura.',
+              bn: 'জ্বলন্ত আগুনের আভা এবং ড্রাগনের আঁশ দিয়ে তৈরি।'
+            }
+          }
+        ],
+        trails: [
+          {
+            id: 'white',
+            name: { en: 'Standard White', bn: 'সাধারণ সাদা' },
+            icon: '✨',
+            price: 0,
+            desc: {
+              en: 'Clean aerodynamic luminous vapor trail.',
+              bn: 'পরিচ্ছন্ন উজ্জ্বল বাতাসের সাদা ট্রেইল।'
+            }
+          },
+          {
+            id: 'rainbow',
+            name: { en: 'Rainbow Sparkles', bn: 'রামধনু চমক' },
+            icon: '🌈',
+            price: 250,
+            desc: {
+              en: 'Iridescent rainbow shimmer trail with twinkling stars.',
+              bn: 'চকচকে তারা সমন্বিত রামধনু রঙের ট্রেইল।'
+            }
+          },
+          {
+            id: 'fire',
+            name: { en: 'Flame Embers', bn: 'অগ্নিস্ফুলিঙ্গ' },
+            icon: '🔥',
+            price: 500,
+            desc: {
+              en: 'Volcanic blaze trail with glowing smoke and embers.',
+              bn: 'উজ্জ্বল ধোঁয়া এবং স্ফুলিঙ্গসহ আগ্নেয়গিরির শিখা।'
+            }
+          },
+          {
+            id: 'matrix',
+            name: { en: 'Cyber Matrix', bn: 'সাইবার ম্যাট্রিক্স' },
+            icon: '💻',
+            price: 800,
+            desc: {
+              en: 'Cascading digital matrix glyphs trailing the arrow flight.',
+              bn: 'তীরের পেছনে ঝরে পড়া ডিজিটাল ম্যাট্রিক্স কোড।'
+            }
+          }
+        ],
+        sounds: [
+          {
+            id: 'retro',
+            name: { en: 'Arcade 8-Bit', bn: 'আর্কেড ৮-বিট' },
+            icon: '👾',
+            price: 0,
+            desc: {
+              en: 'Vintage chiptune square-wave twangs, 8-bit laser snaps, and classic arcade chimes.',
+              bn: 'ভিন্টেজ চিপটিউন স্কয়ার-ওয়েভ এবং ক্লাসিক আর্কেডের সুর।'
+            }
+          },
+          {
+            id: 'cyber',
+            name: { en: 'Cyber Sci-Fi', bn: 'সাইবার সায়েন্স-ফিকশন' },
+            icon: '⚡',
+            price: 350,
+            desc: {
+              en: 'Futuristic sci-fi plasma beam zaps, holographic pings, and neon synth arpeggios.',
+              bn: 'ভবিষ্যতের প্লাজমা রশ্মি ও নিয়ন সিন্থেসাইজারের শব্দ।'
+            }
+          },
+          {
+            id: 'crystal',
+            name: { en: 'Crystal Fantasy', bn: 'ক্রিস্টাল ফ্যান্টাসি' },
+            icon: '🔮',
+            price: 600,
+            desc: {
+              en: 'Harmonic glass bell dings, enchanted crystal pings, and celestial angelic chords.',
+              bn: 'জাদুকরী কাঁচের ঘণ্টার ধ্বনি এবং স্বর্গীয় সুর।'
+            }
+          },
+          {
+            id: 'mecha',
+            name: { en: 'Heavy Mecha', bn: 'হেভি মেকা' },
+            icon: '🤖',
+            price: 850,
+            desc: {
+              en: 'Industrial pneumatic hydraulic thuds, iron anvil clangs, and high-impact clatter.',
+              bn: 'শিল্প কারখানার হাইড্রোলিক এবং লোহার নেহাইয়ের জোরালো শব্দ।'
+            }
+          },
+          {
+            id: 'edm',
+            name: { en: 'Bass Drop EDM', bn: 'বেস ড্রপ ইডিএম' },
+            icon: '🎧',
+            price: 1100,
+            desc: {
+              en: 'Sub-bass electronic punch, pitch-swept filter drops, and club synthesizer chords.',
+              bn: 'ইলেকট্রনিক সাব-বেস ড্রপ ও ক্লাবের সিন্থ কর্ড।'
+            }
+          }
+        ]
+      };
+
+      // ==========================================
+      // 6. PROCEDURAL LEVEL & BOSS GENERATION
+      // ==========================================
+      function setupLevel(lvl) {
+        currentLevel = lvl;
+        isBossLevel = (lvl % 5 === 0);
+        wheel.theme = getThemeForLevel(lvl);
+
+        if (lvl === 1) {
+          runCoinsEarned = 0;
+        }
+
+        totalLevelArrows = Math.min(30, 5 + Math.floor(lvl * 1.2));
+        arrowsRemaining = totalLevelArrows + (isBossLevel ? 3 : (lvl >= 2 ? 2 : 1));
+        successfulHitsInLevel = 0;
+
+        if (isBossLevel) {
+          bossMaxHp = arrowsRemaining;
+          bossCurrentHp = bossMaxHp;
+          bossPhase = 1;
+          const bossNamesEN = [
+            'CYBER TITAN MK-I',
+            'INFERNO BEHEMOTH',
+            'MATRIX CHIMERA',
+            'VOID OVERLORD',
+            'OMEGA APEX'
+          ];
+          const bossNamesBN = [
+            'সাইবার টাইটান MK-I',
+            'ইনফার্নো বেহেমথ',
+            'ম্যাট্রিক্স কাইমেরা',
+            'ভয়েড ওভারলর্ড',
+            'ওমেগা অ্যাপেক্স'
+          ];
+          const bIdx = Math.min(bossNamesEN.length - 1, Math.floor(lvl / 5) - 1);
+          const bName = currentLang === 'bn' ? bossNamesBN[bIdx] : bossNamesEN[bIdx];
+          bossNameEl.textContent = `${t('bossPrefix')}: ${bName}`;
+          bossHpText.textContent = `${bossCurrentHp} / ${bossMaxHp} HP`;
+          bossHealthFill.style.width = '100%';
+          bossHealthBar.classList.add('active');
+        } else {
+          bossHealthBar.classList.remove('active');
+        }
+
+        const baseMagnitude = 1.5 + lvl * 0.25;
+        wheel.direction = lvl % 2 === 0 ? -1 : 1;
+        wheel.targetDirection = wheel.direction;
+        wheel.baseSpeed = baseMagnitude;
+        wheel.directionTransition = 1.0;
+        wheel.reversalWarning = 0;
+        wheel.slowMoTimer = 0;
+
+        wheel.switchProbability = Math.min(0.8, 0.1 + lvl * 0.05);
+        wheel.switchTimer = 0;
+        wheel.switchInterval = Math.max(1.3, 3.2 - lvl * 0.08);
+
+        wheel.hasDualRing = (lvl >= 8 && !isBossLevel);
+        wheel.dualRingRotation = 0;
+        wheel.dualRingSpeed = -wheel.baseSpeed * 0.85;
+
+        inFlightArrows = [];
+        pinnedArrows = [];
+        particles = [];
+        shockwaves = [];
+        isLevelTransitioning = false;
+        archer.recoilOffset = 0;
+        archer.bowStringPull = 0;
+
+        const obstacleCount = lvl >= 2 ? Math.min(12, Math.max(1, Math.floor((lvl - 1) * 0.8))) : 0;
+
+        if (obstacleCount > 0) {
+          const slice = (Math.PI * 2) / obstacleCount;
+          for (let i = 0; i < obstacleCount; i++) {
+            const jitter = (Math.random() - 0.5) * (slice * 0.35);
+            const angle = i * slice + jitter;
+
+            const isShield = (lvl >= 3) && (i % 2 === 1 || isBossLevel);
+            pinnedArrows.push({
+              angleOnWheel: angle,
+              length: isShield ? 32 : 44,
+              headRadius: isShield ? 12 : 7,
+              isObstacle: true,
+              isShield: isShield,
+              shieldHp: 2,
+              angularSpan: isShield ? 0.36 : 0.16,
+              color: wheel.theme.obstacle,
+              onDualRing: false
+            });
+          }
+        }
+
+        if (wheel.hasDualRing) {
+          const outerCount = Math.min(4, 2 + Math.floor((lvl - 8) * 0.5));
+          const oSlice = (Math.PI * 2) / outerCount;
+          for (let i = 0; i < outerCount; i++) {
+            pinnedArrows.push({
+              angleOnWheel: i * oSlice,
+              length: 28,
+              headRadius: 10,
+              isObstacle: true,
+              isShield: true,
+              shieldHp: 2,
+              angularSpan: 0.34,
+              color: '#00f0ff',
+              onDualRing: true
+            });
+          }
+        }
+
+        wheel.goldenTargets = [];
+        const goldenCount = Math.random() > 0.4 ? 2 : 1;
+        for (let g = 0; g < goldenCount; g++) {
+          wheel.goldenTargets.push({
+            angle: Math.random() * Math.PI * 2,
+            angularSpan: 0.24,
+            hit: false
+          });
+        }
+
+        updateHUD();
+        renderQuiverRack();
+        updateAmmoButtons();
+      }
+
+      // ==========================================
+      // 7. RESPONSIVE SIZING & HIGH-DPI CANVAS
+      // ==========================================
+      function resizeCanvas() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        dpr = window.devicePixelRatio || 1;
+
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        ctx.resetTransform();
+        ctx.scale(dpr, dpr);
+
+        wheel.x = width * 0.5;
+        wheel.y = Math.max(130, Math.min(height * 0.28, 250));
+        wheel.baseRadius = Math.max(46, Math.min(width * 0.16, height * 0.12, 82));
+        wheel.radius = wheel.baseRadius;
+
+        archer.x = width * 0.5;
+        archer.y = height - Math.max(90, Math.min(height * 0.16, 120));
+
+        starfield = [];
+        const starCount = Math.floor((width * height) / 9000);
+        for (let i = 0; i < starCount; i++) {
+          starfield.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            radius: Math.random() * 1.5 + 0.5,
+            alpha: Math.random() * 0.5 + 0.2,
+            twinkleSpeed: Math.random() * 2 + 1
+          });
+        }
+      }
+      window.addEventListener('resize', resizeCanvas);
+
+      // ==========================================
+      // 8. CONTINUOUS COLLISION DETECTION (CCD)
+      // ==========================================
+      function checkContinuousCircleHit(prevX, prevY, currX, currY, cx, cy, r) {
+        const dx = currX - prevX;
+        const dy = currY - prevY;
+        const fx = prevX - cx;
+        const fy = prevY - cy;
+
+        const a = dx * dx + dy * dy;
+        if (a < 0.0001) {
+          const distSq = (currX - cx) * (currX - cx) + (currY - cy) * (currY - cy);
+          return distSq <= r * r ? { hit: true, impactX: currX, impactY: currY } : null;
+        }
+
+        const b = 2 * (fx * dx + fy * dy);
+        const c = fx * fx + fy * fy - r * r;
+        const discriminant = b * b - 4 * a * c;
+
+        if (discriminant >= 0) {
+          const sqrtD = Math.sqrt(discriminant);
+          const t1 = (-b - sqrtD) / (2 * a);
+          if (t1 >= 0 && t1 <= 1) {
+            return {
+              hit: true,
+              impactX: prevX + t1 * dx,
+              impactY: prevY + t1 * dy
+            };
+          }
+        }
+
+        const endDistSq = (currX - cx) * (currX - cx) + (currY - cy) * (currY - cy);
+        if (endDistSq <= r * r) {
+          return { hit: true, impactX: currX, impactY: currY };
+        }
+
+        return null;
+      }
+
+      function normalizeAngle(a) {
+        let angle = a % (Math.PI * 2);
+        if (angle > Math.PI) angle -= Math.PI * 2;
+        if (angle <= -Math.PI) angle += Math.PI * 2;
+        return angle;
+      }
+
+      function checkArrowPinCollision(incomingLocalAngle, isGhost = false, onDualRing = false) {
+        if (isGhost) return { collided: false };
+
+        const minSafeArcDistance = 19;
+
+        for (let i = 0; i < pinnedArrows.length; i++) {
+          const item = pinnedArrows[i];
+          if (item.onDualRing !== onDualRing) continue;
+
+          const deltaTheta = Math.abs(normalizeAngle(incomingLocalAngle - item.angleOnWheel));
+          const arcDist = wheel.radius * deltaTheta;
+
+          if (item.isObstacle) {
+            if (deltaTheta < item.angularSpan) {
+              return {
+                collided: true,
+                obstacle: true,
+                targetItem: item,
+                index: i,
+                reason: item.isShield ? 'Hit an Energy Shield!' : 'Deflected by a Hazard Spike!'
+              };
+            }
+          } else {
+            if (arcDist < minSafeArcDistance) {
+              return {
+                collided: true,
+                obstacle: false,
+                targetItem: item,
+                index: i,
+                reason: 'Hit an existing Pinned Arrow!'
+              };
+            }
+          }
+        }
+        return { collided: false };
+      }
+
+      // ==========================================
+      // 9. INPUT & SHOOTING LOGIC
+      // ==========================================
+      function updateAimFromPointer(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        const px = clientX - rect.left;
+        const py = clientY - rect.top;
+
+        const angle = Math.atan2(py - archer.y, px - archer.x);
+        const minAngle = -Math.PI * 0.94;
+        const maxAngle = -Math.PI * 0.06;
+        archer.targetAngle = Math.max(minAngle, Math.min(maxAngle, angle));
+      }
+
+      function shootArrow() {
+        if (!isGameStarted || isPaused || isGameOver || isLevelTransitioning) return;
+        if (arrowsRemaining <= 0) return;
+
+        const now = performance.now() / 1000;
+        if (now - archer.lastShotTime < archer.cooldown) return;
+        archer.lastShotTime = now;
+
+        const currentType = selectedArrowType;
+        if (currentType !== 'normal') {
+          if (!inventory[currentType] || inventory[currentType] <= 0) {
+            selectedArrowType = 'normal';
+            updateAmmoButtons();
+          } else {
+            inventory[currentType]--;
+            Storage.setInventory(inventory);
+            updateAmmoButtons();
+          }
+        }
+
+        sound.playShoot(currentType);
+
+        const speed = Math.max(1550, height * 1.85);
+        const vx = Math.cos(archer.angle) * speed;
+        const vy = Math.sin(archer.angle) * speed;
+
+        const tipX = archer.x + Math.cos(archer.angle) * 36;
+        const tipY = archer.y + Math.sin(archer.angle) * 36;
+
+        const currentSkinStyle = getSkinStyle(equippedSkin);
+        inFlightArrows.push({
+          x: tipX,
+          y: tipY,
+          prevX: tipX,
+          prevY: tipY,
+          vx: vx,
+          vy: vy,
+          angle: archer.angle,
+          length: 52,
+          headRadius: 6,
+          type: currentType,
+          skin: equippedSkin,
+          skinStyle: currentSkinStyle,
+          trailStyle: equippedTrail,
+          trail: []
+        });
+
+        archer.recoilOffset = 14;
+        archer.bowStringPull = 0;
+
+        arrowsRemaining--;
+        updateHUD();
+        animateQuiverShot();
+      }
+
+      // Pointer & Keyboard Listeners
+      window.addEventListener('mousemove', (e) => {
+        updateAimFromPointer(e.clientX, e.clientY);
+      });
+
+      canvas.addEventListener('mousedown', (e) => {
+        if (e.button === 0) {
+          sound.init();
+          updateAimFromPointer(e.clientX, e.clientY);
+          shootArrow();
+        }
+      });
+
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          sound.init();
+          shootArrow();
+        } else if (e.code === 'Digit1' || e.code === 'Numpad1') {
+          selectAmmo('normal');
+        } else if (e.code === 'Digit2' || e.code === 'Numpad2') {
+          selectAmmo('bomb');
+        } else if (e.code === 'Digit3' || e.code === 'Numpad3') {
+          selectAmmo('slowmo');
+        } else if (e.code === 'Digit4' || e.code === 'Numpad4') {
+          selectAmmo('ghost');
+        } else if (e.code === 'KeyP') {
+          togglePause();
+        } else if (e.code === 'KeyM') {
+          toggleAudio();
+        } else if (e.code === 'KeyR' && isGameOver) {
+          retryCurrentLevel();
+        }
+      });
+
+      // Touch events (Mobile friendly with trajectory guide)
+      let activeTouch = false;
+      canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        sound.init();
+        if (e.touches.length > 0) {
+          activeTouch = true;
+          archer.isAiming = true;
+          archer.bowStringPull = 0.8;
+          updateAimFromPointer(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: false });
+
+      canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (e.touches.length > 0) {
+          updateAimFromPointer(e.touches[0].clientX, e.touches[0].clientY);
+          archer.bowStringPull = 1.0;
+        }
+      }, { passive: false });
+
+      canvas.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        if (activeTouch) {
+          activeTouch = false;
+          archer.isAiming = false;
+          shootArrow();
+        }
+      }, { passive: false });
+
+      canvas.addEventListener('touchcancel', () => {
+        activeTouch = false;
+        archer.isAiming = false;
+        archer.bowStringPull = 0;
+      });
+
+      function selectAmmo(type) {
+        if (type !== 'normal' && (!inventory[type] || inventory[type] <= 0)) {
+          openShop('ammo');
+          return;
+        }
+        selectedArrowType = type;
+        updateAmmoButtons();
+      }
+
+      ammoBtnNormal.addEventListener('click', () => selectAmmo('normal'));
+      ammoBtnBomb.addEventListener('click', () => selectAmmo('bomb'));
+      ammoBtnSlowmo.addEventListener('click', () => selectAmmo('slowmo'));
+      ammoBtnGhost.addEventListener('click', () => selectAmmo('ghost'));
+
+      function updateAmmoButtons() {
+        [ammoBtnNormal, ammoBtnBomb, ammoBtnSlowmo, ammoBtnGhost].forEach(b => b.classList.remove('active'));
+
+        countBomb.textContent = `x${inventory.bomb || 0}`;
+        countSlowmo.textContent = `x${inventory.slowmo || 0}`;
+        countGhost.textContent = `x${inventory.ghost || 0}`;
+
+        ammoBtnBomb.classList.toggle('empty', (inventory.bomb || 0) <= 0);
+        ammoBtnSlowmo.classList.toggle('empty', (inventory.slowmo || 0) <= 0);
+        ammoBtnGhost.classList.toggle('empty', (inventory.ghost || 0) <= 0);
+
+        if (selectedArrowType === 'normal') ammoBtnNormal.classList.add('active');
+        if (selectedArrowType === 'bomb') ammoBtnBomb.classList.add('active');
+        if (selectedArrowType === 'slowmo') ammoBtnSlowmo.classList.add('active');
+        if (selectedArrowType === 'ghost') ammoBtnGhost.classList.add('active');
+      }
+
+      // ==========================================
+      // 10. VISUAL FX, PARTICLES & COIN FLOATERS
+      // ==========================================
+      function spawnHitParticles(x, y, colorTheme, count = 16) {
+        for (let i = 0; i < count; i++) {
+          const speed = Math.random() * 220 + 80;
+          const pAngle = Math.random() * Math.PI * 2;
+          particles.push({
+            x: x,
+            y: y,
+            vx: Math.cos(pAngle) * speed,
+            vy: Math.sin(pAngle) * speed,
+            size: Math.random() * 4 + 2,
+            alpha: 1.0,
+            decay: Math.random() * 1.8 + 1.2,
+            color: colorTheme.particles[Math.floor(Math.random() * colorTheme.particles.length)],
+            gravity: 120
+          });
+        }
+
+        shockwaves.push({
+          x: x,
+          y: y,
+          radius: 8,
+          maxRadius: 42,
+          speed: 120,
+          alpha: 0.9,
+          color: colorTheme.wheelRim
+        });
+      }
+
+      function spawnBombExplosion(x, y) {
+        sound.playBombExplosion();
+        triggerScreenShake(18);
+        triggerScreenFlash('rgba(255, 140, 0, ', 0.55);
+
+        for (let i = 0; i < 45; i++) {
+          const speed = Math.random() * 340 + 100;
+          const pAngle = Math.random() * Math.PI * 2;
+          particles.push({
+            x: x,
+            y: y,
+            vx: Math.cos(pAngle) * speed,
+            vy: Math.sin(pAngle) * speed,
+            size: Math.random() * 6 + 3,
+            alpha: 1.0,
+            decay: Math.random() * 1.5 + 0.8,
+            color: ['#ff8800', '#ff0055', '#ffe600', '#ffffff'][Math.floor(Math.random() * 4)],
+            gravity: 160
+          });
+        }
+
+        shockwaves.push({
+          x: x,
+          y: y,
+          radius: 12,
+          maxRadius: 85,
+          speed: 240,
+          alpha: 1.0,
+          color: '#ff8800'
+        });
+      }
+
+      function spawnFloatingCoin(x, y, amount = 1) {
+        sound.playCoin();
+        playerCoins += amount;
+        sessionCoinsEarned += amount;
+        Storage.setCoins(playerCoins);
+        updateHUD();
+
+        const el = document.createElement('div');
+        el.className = 'coin-floater';
+        el.textContent = `+${amount} 🪙`;
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        document.getElementById('game-container').appendChild(el);
+        setTimeout(() => el.remove(), 850);
+      }
+
+      function triggerScreenShake(amount = 14) {
+        if (!userSettings.shake) return;
+        screenShake = amount;
+      }
+
+      function triggerScreenFlash(color = 'rgba(255, 42, 85, ', alpha = 0.5) {
+        flashColor = color;
+        flashAlpha = alpha;
+        flashOverlay.style.backgroundColor = flashColor + flashAlpha + ')';
+        flashOverlay.style.opacity = '1';
+      }
+
+      // ==========================================
+      // 11. WIN / LOSS & BOSS PROGRESSION
+      // ==========================================
+      function checkStageCompletion() {
+        if (isLevelTransitioning || isGameOver) return;
+
+        const isComplete = isBossLevel 
+          ? (bossCurrentHp <= 0) 
+          : (successfulHitsInLevel >= totalLevelArrows);
+
+        if (isComplete && inFlightArrows.length === 0) {
+          handleLevelWin();
+        } else if (arrowsRemaining === 0 && inFlightArrows.length === 0 && !isComplete) {
+          // Player ran out of arrows without hitting all required pins!
+          handleGameOver('Ran out of arrows before clearing stage!');
+        }
+      }
+
+      function handleLevelWin() {
+        if (isLevelTransitioning || isGameOver) return;
+        isLevelTransitioning = true;
+
+        const isBoss = isBossLevel;
+        sound.playWin(isBoss);
+
+        const winCoins = isBoss ? 100 : (20 + currentLevel * 2);
+        const winPoints = isBoss ? 2500 : (500 + currentLevel * 100 + comboStreak * 50);
+
+        playerCoins += winCoins;
+        sessionCoinsEarned += winCoins;
+        Storage.setCoins(playerCoins);
+        score += winPoints;
+        checkHighScore();
+        updateHUD();
+
+        if (isBoss) {
+          levelToast.classList.add('boss-toast');
+          levelClearTitle.textContent = t('bossDestroyed');
+          levelBonus.textContent = `+${winPoints} PTS • +${winCoins} 🪙 ${t('bossReward')}`;
+          spawnBombExplosion(wheel.x, wheel.y);
+        } else {
+          levelToast.classList.remove('boss-toast');
+          levelClearTitle.textContent = t('stageCleared');
+          levelBonus.textContent = `+${winPoints} PTS • +${winCoins} 🪙`;
+          spawnHitParticles(wheel.x, wheel.y, wheel.theme, 35);
+        }
+
+        levelToast.classList.add('show');
+        triggerScreenFlash('rgba(0, 255, 136, ', 0.35);
+
+        setTimeout(() => {
+          levelToast.classList.remove('show');
+          currentLevel++;
+          setupLevel(currentLevel);
+        }, 1600);
+      }
+
+      function handleGameOver(reason = 'Arrow Collision!') {
+        if (isGameOver) return;
+        isGameOver = true;
+        comboStreak = 0;
+        updateHUD();
+
+        sound.playGameOver();
+        triggerScreenShake(24);
+        triggerScreenFlash('rgba(255, 42, 85, ', 0.65);
+
+        checkHighScore();
+        goReason.textContent = getTranslatedReason(reason);
+        goScore.textContent = score;
+        goLevel.textContent = currentLevel;
+        goCoinsEarned.textContent = `+${sessionCoinsEarned} 🪙`;
+        goHigh.textContent = highScore;
+
+        setTimeout(() => {
+          modalGameOver.classList.add('show');
+        }, 350);
+      }
+
+      function checkHighScore() {
+        if (score > highScore) {
+          highScore = score;
+          Storage.setHighScore(highScore);
+        }
+      }
+
+      function retryCurrentLevel() {
+        modalGameOver.classList.remove('show');
+        isGameOver = false;
+        setupLevel(currentLevel);
+      }
+
+      function restartFromLevelOne() {
+        modalGameOver.classList.remove('show');
+        modalPause.classList.remove('show');
+        isGameOver = false;
+        isPaused = false;
+        score = 0;
+        comboStreak = 0;
+        sessionCoinsEarned = 0;
+        totalHitsGame = 0;
+        setupLevel(1);
+      }
+
+      function togglePause() {
+        if (!isGameStarted || isGameOver) return;
+        isPaused = !isPaused;
+        if (isPaused) {
+          modalPause.classList.add('show');
+        } else {
+          modalPause.classList.remove('show');
+        }
+      }
+
+      function toggleAudio() {
+        const isMuted = sound.toggleMute();
+        svgAudioOn.style.display = isMuted ? 'none' : 'block';
+        svgAudioOff.style.display = isMuted ? 'block' : 'none';
+        settingSound.checked = !isMuted;
+      }
+
+      // ==========================================
+      // 12. SHOP UI & SOUND SHOP LOGIC
+      // ==========================================
+      function openShop(tab = 'ammo') {
+        currentShopTab = tab;
+        shopCoinDisplay.textContent = playerCoins;
+        renderShopTab();
+        modalShop.classList.add('show');
+      }
+
+      function closeShop() {
+        modalShop.classList.remove('show');
+        updateHUD();
+        updateAmmoButtons();
+      }
+
+      tabAmmo.addEventListener('click', () => { currentShopTab = 'ammo'; renderShopTab(); });
+      tabSkins.addEventListener('click', () => { currentShopTab = 'skins'; renderShopTab(); });
+      tabTrails.addEventListener('click', () => { currentShopTab = 'trails'; renderShopTab(); });
+      tabSounds.addEventListener('click', () => { currentShopTab = 'sounds'; renderShopTab(); });
+
+      function renderShopTab() {
+        [tabAmmo, tabSkins, tabTrails, tabSounds].forEach(t => t.classList.remove('active'));
+        if (currentShopTab === 'ammo') tabAmmo.classList.add('active');
+        if (currentShopTab === 'skins') tabSkins.classList.add('active');
+        if (currentShopTab === 'trails') tabTrails.classList.add('active');
+        if (currentShopTab === 'sounds') tabSounds.classList.add('active');
+
+        shopItemsList.innerHTML = '';
+        shopCoinDisplay.textContent = playerCoins;
+
+        const items = SHOP_CATALOG[currentShopTab] || [];
+        items.forEach(item => {
+          const card = document.createElement('div');
+          card.className = 'shop-item-card';
+
+          const iconBox = document.createElement('div');
+          iconBox.className = 'shop-item-icon-box';
+          iconBox.textContent = item.icon;
+
+          const details = document.createElement('div');
+          details.className = 'shop-item-details';
+
+          const title = document.createElement('div');
+          title.className = 'shop-item-title';
+          title.textContent = getItemText(item, 'name');
+
+          const desc = document.createElement('div');
+          desc.className = 'shop-item-desc';
+          desc.textContent = getItemText(item, 'desc');
+
+          details.appendChild(title);
+          details.appendChild(desc);
+
+          const action = document.createElement('div');
+          action.className = 'shop-item-action';
+
+          if (currentShopTab === 'ammo') {
+            const count = inventory[item.id] || 0;
+            const btn = document.createElement('button');
+            btn.className = `btn-buy ${playerCoins < item.price ? 'disabled' : ''}`;
+            btn.innerHTML = `${t('buy')} 🪙${item.price}`;
+            btn.addEventListener('click', () => {
+              if (playerCoins >= item.price) {
+                playerCoins -= item.price;
+                inventory[item.id] = (inventory[item.id] || 0) + 1;
+                Storage.setCoins(playerCoins);
+                Storage.setInventory(inventory);
+                sound.playCoin();
+                renderShopTab();
+                updateAmmoButtons();
+              }
+            });
+
+            const ownedLabel = document.createElement('span');
+            ownedLabel.style.fontSize = '10px';
+            ownedLabel.style.color = 'var(--text-muted)';
+            ownedLabel.textContent = `${t('owned')} ${count}`;
+
+            action.appendChild(btn);
+            action.appendChild(ownedLabel);
+          } else if (currentShopTab === 'skins') {
+            const isUnlocked = unlockedSkins.includes(item.id);
+            const isEquipped = equippedSkin === item.id;
+
+            if (isEquipped) {
+              const badge = document.createElement('button');
+              badge.className = 'btn-equip equipped';
+              badge.textContent = t('equipped');
+              action.appendChild(badge);
+            } else if (isUnlocked) {
+              const btn = document.createElement('button');
+              btn.className = 'btn-equip';
+              btn.textContent = t('equip');
+              btn.addEventListener('click', () => {
+                equippedSkin = item.id;
+                Storage.setEquippedSkin(item.id);
+                sound.playCoin();
+                renderShopTab();
+              });
+              action.appendChild(btn);
+            } else {
+              const btn = document.createElement('button');
+              btn.className = `btn-buy ${playerCoins < item.price ? 'disabled' : ''}`;
+              btn.innerHTML = `${t('unlock')} 🪙${item.price}`;
+              btn.addEventListener('click', () => {
+                if (playerCoins >= item.price) {
+                  playerCoins -= item.price;
+                  unlockedSkins.push(item.id);
+                  equippedSkin = item.id;
+                  Storage.setCoins(playerCoins);
+                  Storage.setSkins(unlockedSkins);
+                  Storage.setEquippedSkin(item.id);
+                  sound.playCoin();
+                  renderShopTab();
+                }
+              });
+              action.appendChild(btn);
+            }
+          } else if (currentShopTab === 'trails') {
+            const isUnlocked = unlockedTrails.includes(item.id);
+            const isEquipped = equippedTrail === item.id;
+
+            if (isEquipped) {
+              const badge = document.createElement('button');
+              badge.className = 'btn-equip equipped';
+              badge.textContent = t('equipped');
+              action.appendChild(badge);
+            } else if (isUnlocked) {
+              const btn = document.createElement('button');
+              btn.className = 'btn-equip';
+              btn.textContent = t('equip');
+              btn.addEventListener('click', () => {
+                equippedTrail = item.id;
+                Storage.setEquippedTrail(item.id);
+                sound.playCoin();
+                renderShopTab();
+              });
+              action.appendChild(btn);
+            } else {
+              const btn = document.createElement('button');
+              btn.className = `btn-buy ${playerCoins < item.price ? 'disabled' : ''}`;
+              btn.innerHTML = `${t('unlock')} 🪙${item.price}`;
+              btn.addEventListener('click', () => {
+                if (playerCoins >= item.price) {
+                  playerCoins -= item.price;
+                  unlockedTrails.push(item.id);
+                  equippedTrail = item.id;
+                  Storage.setCoins(playerCoins);
+                  Storage.setTrails(unlockedTrails);
+                  Storage.setEquippedTrail(item.id);
+                  sound.playCoin();
+                  renderShopTab();
+                }
+              });
+              action.appendChild(btn);
+            }
+          } else if (currentShopTab === 'sounds') {
+            // Sound Shop Tab with Live Preview Button!
+            const previewBtn = document.createElement('button');
+            previewBtn.className = 'btn-preview';
+            previewBtn.innerHTML = t('preview');
+            previewBtn.addEventListener('click', () => {
+              sound.playPreview(item.id);
+            });
+
+            const isUnlocked = unlockedSoundPacks.includes(item.id);
+            const isEquipped = equippedSoundPack === item.id;
+
+            action.appendChild(previewBtn);
+
+            if (isEquipped) {
+              const badge = document.createElement('button');
+              badge.className = 'btn-equip equipped';
+              badge.textContent = t('equipped');
+              action.appendChild(badge);
+            } else if (isUnlocked) {
+              const btn = document.createElement('button');
+              btn.className = 'btn-equip';
+              btn.textContent = t('equip');
+              btn.addEventListener('click', () => {
+                equippedSoundPack = item.id;
+                Storage.setEquippedSoundPack(item.id);
+                sound.playPreview(item.id);
+                renderShopTab();
+              });
+              action.appendChild(btn);
+            } else {
+              const btn = document.createElement('button');
+              btn.className = `btn-buy ${playerCoins < item.price ? 'disabled' : ''}`;
+              btn.innerHTML = `${t('unlock')} 🪙${item.price}`;
+              btn.addEventListener('click', () => {
+                if (playerCoins >= item.price) {
+                  playerCoins -= item.price;
+                  unlockedSoundPacks.push(item.id);
+                  equippedSoundPack = item.id;
+                  Storage.setCoins(playerCoins);
+                  Storage.setSoundPacks(unlockedSoundPacks);
+                  Storage.setEquippedSoundPack(item.id);
+                  sound.playPreview(item.id);
+                  renderShopTab();
+                }
+              });
+              action.appendChild(btn);
+            }
+          }
+
+          card.appendChild(iconBox);
+          card.appendChild(details);
+          card.appendChild(action);
+          shopItemsList.appendChild(card);
+        });
+      }
+
+      // ==========================================
+      // 13. SETTINGS & HUD UPDATES
+      // ==========================================
+      function updateHUD() {
+        const trans = I18N[currentLang] || I18N.en;
+        if (isBossLevel) {
+          levelInd.textContent = trans.bossStage;
+          levelInd.classList.add('boss');
+        } else {
+          levelInd.textContent = `${trans.stage} ${currentLevel}`;
+          levelInd.classList.remove('boss');
+        }
+        levelInd.style.color = wheel.theme.wheelRim;
+        scoreVal.textContent = score;
+        highScoreVal.textContent = highScore;
+        coinCounter.textContent = playerCoins;
+        quiverNum.textContent = arrowsRemaining;
+
+        if (comboStreak >= 2) {
+          comboInd.textContent = `${trans.combo} x${comboStreak}`;
+          comboInd.classList.add('active');
+        } else {
+          comboInd.classList.remove('active');
+        }
+      }
+
+      function renderQuiverRack() {
+        quiverRack.innerHTML = '';
+        for (let i = 0; i < totalLevelArrows; i++) {
+          const div = document.createElement('div');
+          div.className = 'quiver-arrow';
+          div.id = `quiver-arrow-${i}`;
+          if (i >= arrowsRemaining) {
+            div.classList.add('spent');
+          }
+          quiverRack.appendChild(div);
+        }
+      }
+
+      function animateQuiverShot() {
+        const spentIndex = arrowsRemaining;
+        const arrowEl = document.getElementById(`quiver-arrow-${spentIndex}`);
+        if (arrowEl) {
+          arrowEl.classList.add('spent');
+        }
+      }
+
+      // Settings Modal logic
+      btnSettings.addEventListener('click', () => {
+        settingSound.checked = !sound.muted;
+        settingTrajectory.checked = userSettings.trajectory;
+        settingShake.checked = userSettings.shake;
+        modalSettings.classList.add('show');
+      });
+
+      btnCloseSettings.addEventListener('click', () => {
+        userSettings.trajectory = settingTrajectory.checked;
+        userSettings.shake = settingShake.checked;
+        Storage.setSettings(userSettings);
+        if (sound.muted === settingSound.checked) {
+          toggleAudio();
+        }
+        modalSettings.classList.remove('show');
+      });
+
+      let resetConfirmTimeout = null;
+      btnResetData.addEventListener('click', () => {
+        if (!btnResetData.classList.contains('confirming')) {
+          btnResetData.classList.add('confirming');
+          btnResetData.textContent = t('resetConfirm');
+          btnResetData.style.background = 'rgba(255, 42, 85, 0.28)';
+          btnResetData.style.borderColor = 'var(--danger)';
+          btnResetData.style.color = '#fff';
+
+          clearTimeout(resetConfirmTimeout);
+          resetConfirmTimeout = setTimeout(() => {
+            btnResetData.classList.remove('confirming');
+            btnResetData.textContent = t('resetProgress');
+            btnResetData.style.background = '';
+            btnResetData.style.borderColor = 'rgba(255, 42, 85, 0.4)';
+            btnResetData.style.color = 'var(--danger)';
+          }, 4000);
+        } else {
+          clearTimeout(resetConfirmTimeout);
+          btnResetData.classList.remove('confirming');
+          btnResetData.textContent = t('resetProgress');
+          btnResetData.style.background = '';
+          btnResetData.style.borderColor = 'rgba(255, 42, 85, 0.4)';
+          btnResetData.style.color = 'var(--danger)';
+
+          // Clear stored progress in localStorage (preserve language)
+          localStorage.removeItem('arrow_go_coins');
+          localStorage.removeItem('arrow_go_highscore');
+          localStorage.removeItem('arrow_go_inventory');
+          localStorage.removeItem('arrow_go_skins');
+          localStorage.removeItem('arrow_go_equipped_skin');
+          localStorage.removeItem('arrow_go_trails');
+          localStorage.removeItem('arrow_go_equipped_trail');
+          localStorage.removeItem('arrow_go_sound_packs');
+          localStorage.removeItem('arrow_go_equipped_sound');
+
+          // Reset runtime variables
+          playerCoins = 0;
+          highScore = 0;
+          sessionCoinsEarned = 0;
+          score = 0;
+          comboStreak = 0;
+          inventory = { bomb: 1, slowmo: 1, ghost: 0 };
+          unlockedSkins = ['classic'];
+          equippedSkin = 'classic';
+          unlockedTrails = ['white'];
+          equippedTrail = 'white';
+          unlockedSoundPacks = ['retro'];
+          equippedSoundPack = 'retro';
+
+          Storage.setCoins(0);
+          Storage.setHighScore(0);
+          Storage.setInventory(inventory);
+          Storage.setSkins(unlockedSkins);
+          Storage.setEquippedSkin('classic');
+          Storage.setTrails(unlockedTrails);
+          Storage.setEquippedTrail('white');
+          Storage.setSoundPacks(unlockedSoundPacks);
+          Storage.setEquippedSoundPack('retro');
+
+          modalSettings.classList.remove('show');
+          restartFromLevelOne();
+
+          // Visual feedback banner
+          levelClearTitle.textContent = t('progressResetTitle');
+          levelBonus.textContent = t('progressResetDesc');
+          levelToast.classList.remove('boss-toast');
+          levelToast.classList.add('show');
+          setTimeout(() => levelToast.classList.remove('show'), 2000);
+        }
+      });
+
+      // ==========================================
+      // 14. MAIN UPDATE & PHYSICS LOOP
+      // ==========================================
+      let lastTime = performance.now();
+
+      function update(dt) {
+        if (isPaused || !isGameStarted) return;
+
+        // Archer smooth aiming
+        const aimSmoothing = 18.0;
+        let angleDiff = archer.targetAngle - archer.angle;
+        archer.angle += angleDiff * Math.min(1.0, dt * aimSmoothing);
+
+        if (archer.recoilOffset > 0) {
+          archer.recoilOffset = Math.max(0, archer.recoilOffset - dt * 60);
+        }
+        if (screenShake > 0) {
+          screenShake = Math.max(0, screenShake - dt * 28);
+        }
+        if (flashAlpha > 0) {
+          flashAlpha = Math.max(0, flashAlpha - dt * 3.2);
+          flashOverlay.style.backgroundColor = flashColor + flashAlpha + ')';
+          if (flashAlpha === 0) flashOverlay.style.opacity = '0';
+        }
+
+        // ==========================================
+        // WHEEL PHYSICS & SPEED FORMULAS
+        // ==========================================
+        if (currentLevel >= 12) {
+          wheel.radius = wheel.baseRadius * (1.0 + 0.12 * Math.sin(performance.now() * 0.003));
+        } else {
+          wheel.radius = wheel.baseRadius;
+        }
+
+        let slowMoFactor = 1.0;
+        if (wheel.slowMoTimer > 0) {
+          wheel.slowMoTimer = Math.max(0, wheel.slowMoTimer - dt);
+          slowMoFactor = 0.5;
+        }
+
+        wheel.pulsePhase += dt * (1.6 + currentLevel * 0.12);
+        let speedMultiplier = 1.0;
+        if (currentLevel >= 5) {
+          speedMultiplier = 1.0 + 0.5 * Math.cos(wheel.pulsePhase);
+        }
+
+        if (isBossLevel && bossCurrentHp <= bossMaxHp * 0.5) {
+          bossPhase = 2;
+          speedMultiplier *= 1.35;
+        }
+
+        if (currentLevel >= 3 || (isBossLevel && bossPhase === 2)) {
+          wheel.switchTimer += dt;
+          const switchThreshold = (isBossLevel && bossPhase === 2) ? 1.8 : wheel.switchInterval;
+          if (wheel.switchTimer >= switchThreshold) {
+            wheel.switchTimer = 0;
+            if (Math.random() < wheel.switchProbability || (isBossLevel && bossPhase === 2)) {
+              wheel.targetDirection *= -1;
+              wheel.reversalWarning = 0.55;
+            }
+          }
+        }
+
+        if (wheel.reversalWarning > 0) {
+          wheel.reversalWarning = Math.max(0, wheel.reversalWarning - dt);
+        }
+
+        const directionLerpSpeed = 3.5;
+        wheel.direction += (wheel.targetDirection - wheel.direction) * Math.min(1.0, dt * directionLerpSpeed);
+
+        const angularVelocity = wheel.baseSpeed * wheel.direction * speedMultiplier * slowMoFactor;
+        wheel.rotation += angularVelocity * dt;
+
+        if (wheel.hasDualRing) {
+          wheel.dualRingRotation += wheel.dualRingSpeed * slowMoFactor * dt;
+        }
+
+        // ==========================================
+        // IN-FLIGHT ARROWS UPDATE & COLLISION CHECK
+        // ==========================================
+        for (let i = inFlightArrows.length - 1; i >= 0; i--) {
+          const arrow = inFlightArrows[i];
+          arrow.prevX = arrow.x;
+          arrow.prevY = arrow.y;
+
+          arrow.x += arrow.vx * dt;
+          arrow.y += arrow.vy * dt;
+
+          arrow.trail.push({ x: arrow.x, y: arrow.y, alpha: 1.0 });
+          if (arrow.trail.length > 8) arrow.trail.shift();
+
+          // 1. Dual Ring Collision Check (Level 8+)
+          if (wheel.hasDualRing && arrow.type !== 'ghost') {
+            const dualRingRadius = wheel.radius + 38;
+            const dualHit = checkContinuousCircleHit(
+              arrow.prevX, arrow.prevY,
+              arrow.x, arrow.y,
+              wheel.x, wheel.y,
+              dualRingRadius
+            );
+
+            if (dualHit && dualHit.hit) {
+              const dWorldAngle = Math.atan2(dualHit.impactY - wheel.y, dualHit.impactX - wheel.x);
+              const dLocalAngle = normalizeAngle(dWorldAngle - wheel.dualRingRotation);
+              const dCol = checkArrowPinCollision(dLocalAngle, false, true);
+
+              if (dCol.collided) {
+                if (arrow.type === 'bomb') {
+                  spawnBombExplosion(dualHit.impactX, dualHit.impactY);
+                  pinnedArrows.splice(dCol.index, 1);
+                  inFlightArrows.splice(i, 1);
+                  continue;
+                } else if (dCol.targetItem.isShield) {
+                  dCol.targetItem.shieldHp--;
+                  if (dCol.targetItem.shieldHp <= 0) {
+                    sound.playShieldCrack(true);
+                    spawnHitParticles(dualHit.impactX, dualHit.impactY, wheel.theme, 20);
+                    pinnedArrows.splice(dCol.index, 1);
+                  } else {
+                    sound.playShieldCrack(false);
+                    triggerScreenShake(6);
+                  }
+                  inFlightArrows.splice(i, 1);
+                  continue;
+                } else {
+                  handleGameOver(dCol.reason);
+                  return;
+                }
+              }
+            }
+          }
+
+          // 2. Central Wheel Collision Check
+          const hitResult = checkContinuousCircleHit(
+            arrow.prevX, arrow.prevY,
+            arrow.x, arrow.y,
+            wheel.x, wheel.y,
+            wheel.radius
+          );
+
+          if (hitResult && hitResult.hit) {
+            const impactX = hitResult.impactX;
+            const impactY = hitResult.impactY;
+            const worldAngle = Math.atan2(impactY - wheel.y, impactX - wheel.x);
+            const localImpactAngle = normalizeAngle(worldAngle - wheel.rotation);
+
+            // BOMB ARROW SPECIAL EFFECT
+            if (arrow.type === 'bomb') {
+              spawnBombExplosion(impactX, impactY);
+              const bombClearRadius = 70;
+              for (let p = pinnedArrows.length - 1; p >= 0; p--) {
+                const item = pinnedArrows[p];
+                const itemAngle = wheel.rotation + item.angleOnWheel;
+                const itemX = wheel.x + Math.cos(itemAngle) * wheel.radius;
+                const itemY = wheel.y + Math.sin(itemAngle) * wheel.radius;
+                const dist = Math.hypot(itemX - impactX, itemY - impactY);
+                if (dist < bombClearRadius) {
+                  pinnedArrows.splice(p, 1);
+                }
+              }
+
+              pinnedArrows.push({
+                angleOnWheel: localImpactAngle,
+                length: 44,
+                headRadius: 6,
+                isObstacle: false,
+                color: '#ff8800',
+                onDualRing: false
+              });
+
+              successfulHitsInLevel++;
+              totalHitsGame++;
+              spawnFloatingCoin(impactX, impactY, 1);
+              inFlightArrows.splice(i, 1);
+              updateHUD();
+
+              if (isBossLevel) updateBossDamage();
+              checkStageCompletion();
+              continue;
+            }
+
+            // SLOW-MO ARROW SPECIAL EFFECT
+            if (arrow.type === 'slowmo') {
+              sound.playSlowMoWarp();
+              wheel.slowMoTimer = 5.0;
+              triggerScreenFlash('rgba(0, 240, 255, ', 0.35);
+            }
+
+            // GHOST ARROW or STANDARD ARROW COLLISION CHECK
+            const pinCollision = checkArrowPinCollision(localImpactAngle, arrow.type === 'ghost', false);
+
+            if (pinCollision.collided) {
+              if (pinCollision.targetItem.isShield) {
+                pinCollision.targetItem.shieldHp--;
+                if (pinCollision.targetItem.shieldHp <= 0) {
+                  sound.playShieldCrack(true);
+                  spawnHitParticles(impactX, impactY, wheel.theme, 20);
+                  pinnedArrows.splice(pinCollision.index, 1);
+                } else {
+                  sound.playShieldCrack(false);
+                  triggerScreenShake(6);
+                }
+                inFlightArrows.splice(i, 1);
+                continue;
+              } else {
+                inFlightArrows.splice(i, 1);
+                handleGameOver(pinCollision.reason);
+                return;
+              }
+            } else {
+              // SUCCESSFUL PIN!
+              sound.playHit(comboStreak + 1);
+              comboStreak++;
+              successfulHitsInLevel++;
+              totalHitsGame++;
+
+              let hitBullseye = false;
+              for (let g = 0; g < wheel.goldenTargets.length; g++) {
+                const gt = wheel.goldenTargets[g];
+                if (!gt.hit) {
+                  const dTheta = Math.abs(normalizeAngle(localImpactAngle - gt.angle));
+                  if (dTheta < gt.angularSpan) {
+                    gt.hit = true;
+                    hitBullseye = true;
+                    spawnFloatingCoin(impactX, impactY, 5);
+                    score += 250;
+                    break;
+                  }
+                }
+              }
+
+              if (!hitBullseye) {
+                spawnFloatingCoin(impactX, impactY, 1);
+              }
+
+              const earnedScore = 100 + comboStreak * 25;
+              score += earnedScore;
+              checkHighScore();
+
+              pinnedArrows.push({
+                angleOnWheel: localImpactAngle,
+                length: 44,
+                headRadius: 6,
+                isObstacle: false,
+                color: arrow.type === 'ghost' ? 'rgba(0, 255, 200, 0.85)' : wheel.theme.arrowColor,
+                onDualRing: false
+              });
+
+              spawnHitParticles(impactX, impactY, wheel.theme, 16);
+              triggerScreenShake(3);
+
+              if (isBossLevel) updateBossDamage();
+
+              inFlightArrows.splice(i, 1);
+              updateHUD();
+              checkStageCompletion();
+            }
+            continue;
+          }
+
+          // BOUNDS CHECK: IF ARROW MISSES TARGET AND FLIES OFF-SCREEN
+          // Fixes the issue where shooting outside would clear the level!
+          if (arrow.y < -50 || arrow.x < -50 || arrow.x > width + 50 || arrow.y > height + 50) {
+            inFlightArrows.splice(i, 1);
+            // Missing the wheel is an immediate fault!
+            handleGameOver('Arrow missed the target wheel!');
+            return;
+          }
+        }
+
+        // Check if player has run out of arrows with nothing in flight and didn't complete stage
+        if (arrowsRemaining === 0 && inFlightArrows.length === 0 && !isLevelTransitioning && !isGameOver) {
+          checkStageCompletion();
+        }
+
+        // ==========================================
+        // PARTICLES & SHOCKWAVES UPDATE
+        // ==========================================
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.vy += p.gravity * dt;
+          p.alpha -= p.decay * dt;
+          if (p.alpha <= 0) particles.splice(i, 1);
+        }
+
+        for (let i = shockwaves.length - 1; i >= 0; i--) {
+          const sw = shockwaves[i];
+          sw.radius += sw.speed * dt;
+          sw.alpha -= dt * 2.2;
+          if (sw.alpha <= 0 || sw.radius >= sw.maxRadius) shockwaves.splice(i, 1);
+        }
+      }
+
+      function updateBossDamage() {
+        bossCurrentHp = Math.max(0, bossCurrentHp - 1);
+        bossHpText.textContent = `${bossCurrentHp} / ${bossMaxHp} HP`;
+        const pct = Math.max(0, (bossCurrentHp / bossMaxHp) * 100);
+        bossHealthFill.style.width = `${pct}%`;
+      }
+
+      // ==========================================
+      // 15. CANVAS RENDERING
+      // ==========================================
+      function render() {
+        ctx.save();
+
+        if (screenShake > 0) {
+          const shakeX = (Math.random() - 0.5) * screenShake;
+          const shakeY = (Math.random() - 0.5) * screenShake;
+          ctx.translate(shakeX, shakeY);
+        }
+
+        ctx.fillStyle = wheel.theme.bg;
+        ctx.fillRect(0, 0, width, height);
+
+        renderBackground();
+        renderTargetWheel();
+        renderInFlightArrows();
+        renderParticles();
+        renderArcherBow();
+
+        ctx.restore();
+      }
+
+      function renderBackground() {
+        ctx.save();
+        const time = performance.now() * 0.001;
+
+        const bgGrad = ctx.createRadialGradient(wheel.x, wheel.y, 10, wheel.x, wheel.y, width * 0.7);
+        bgGrad.addColorStop(0, wheel.slowMoTimer > 0 ? 'rgba(0, 240, 255, 0.12)' : 'rgba(0, 240, 255, 0.05)');
+        bgGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, width, height);
+
+        for (let i = 0; i < starfield.length; i++) {
+          const s = starfield[i];
+          const alpha = s.alpha * (0.6 + 0.4 * Math.sin(time * s.twinkleSpeed + i));
+          ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      function renderTargetWheel() {
+        ctx.save();
+        ctx.translate(wheel.x, wheel.y);
+
+        if (wheel.reversalWarning > 0) {
+          ctx.strokeStyle = `rgba(255, 230, 0, ${wheel.reversalWarning * 1.5})`;
+          ctx.lineWidth = 6;
+          ctx.beginPath();
+          ctx.arc(0, 0, wheel.radius + 14, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        if (wheel.hasDualRing) {
+          ctx.save();
+          ctx.rotate(wheel.dualRingRotation);
+          const outerR = wheel.radius + 38;
+
+          ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
+          ctx.lineWidth = 3;
+          ctx.setLineDash([12, 10]);
+          ctx.beginPath();
+          ctx.arc(0, 0, outerR, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          for (let i = 0; i < pinnedArrows.length; i++) {
+            const item = pinnedArrows[i];
+            if (!item.onDualRing) continue;
+
+            ctx.save();
+            ctx.rotate(item.angleOnWheel);
+
+            ctx.strokeStyle = item.shieldHp === 1 ? '#ffaa00' : '#00f0ff';
+            ctx.lineWidth = 7;
+            ctx.beginPath();
+            ctx.arc(0, 0, outerR, -item.angularSpan, item.angularSpan);
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(outerR, 0, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+          ctx.restore();
+        }
+
+        for (let i = 0; i < pinnedArrows.length; i++) {
+          const item = pinnedArrows[i];
+          if (item.onDualRing) continue;
+
+          const angle = wheel.rotation + item.angleOnWheel;
+          ctx.save();
+          ctx.rotate(angle);
+
+          if (item.isObstacle) {
+            if (item.isShield) {
+              ctx.strokeStyle = item.shieldHp === 1 ? '#ff3366' : item.color;
+              ctx.lineWidth = 8;
+              ctx.beginPath();
+              ctx.arc(0, 0, wheel.radius + 5, -item.angularSpan, item.angularSpan);
+              ctx.stroke();
+
+              ctx.fillStyle = '#ffffff';
+              ctx.beginPath();
+              ctx.arc(wheel.radius + 5, -6, 2.5, 0, Math.PI * 2);
+              if (item.shieldHp === 2) ctx.arc(wheel.radius + 5, 6, 2.5, 0, Math.PI * 2);
+              ctx.fill();
+            } else {
+              ctx.fillStyle = item.color;
+              ctx.beginPath();
+              ctx.moveTo(wheel.radius - 2, -6);
+              ctx.lineTo(wheel.radius + item.length, 0);
+              ctx.lineTo(wheel.radius - 2, 6);
+              ctx.closePath();
+              ctx.fill();
+            }
+          } else {
+            ctx.strokeStyle = item.color;
+            ctx.lineWidth = 3.5;
+            ctx.beginPath();
+            ctx.moveTo(wheel.radius - 4, 0);
+            ctx.lineTo(wheel.radius + item.length, 0);
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(wheel.radius + item.length, 0, item.headRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = wheel.theme.arrowHead;
+            ctx.beginPath();
+            ctx.arc(wheel.radius - 1, 0, 4, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          ctx.restore();
+        }
+
+        for (let g = 0; g < wheel.goldenTargets.length; g++) {
+          const gt = wheel.goldenTargets[g];
+          if (gt.hit) continue;
+
+          ctx.save();
+          ctx.rotate(wheel.rotation + gt.angle);
+          ctx.strokeStyle = '#ffd700';
+          ctx.lineWidth = 7;
+          ctx.shadowBlur = 12;
+          ctx.shadowColor = '#ffd700';
+
+          ctx.beginPath();
+          ctx.arc(0, 0, wheel.radius + 2, -gt.angularSpan, gt.angularSpan);
+          ctx.stroke();
+
+          ctx.fillStyle = '#ffe600';
+          ctx.beginPath();
+          ctx.arc(wheel.radius + 2, 0, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = wheel.theme.wheelRim;
+        ctx.fillStyle = wheel.theme.wheelCore;
+        ctx.strokeStyle = wheel.theme.wheelRim;
+        ctx.lineWidth = 5;
+
+        ctx.beginPath();
+        ctx.arc(0, 0, wheel.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.save();
+        ctx.rotate(wheel.rotation);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+        ctx.lineWidth = 2;
+        const spokeCount = 8;
+        for (let s = 0; s < spokeCount; s++) {
+          const sAngle = (s * Math.PI * 2) / spokeCount;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(sAngle) * 16, Math.sin(sAngle) * 16);
+          ctx.lineTo(Math.cos(sAngle) * (wheel.radius - 8), Math.sin(sAngle) * (wheel.radius - 8));
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        // Floating Level Indicator directly above the wheel
+        ctx.save();
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = wheel.theme.wheelRim;
+        ctx.fillStyle = wheel.theme.wheelRim;
+        ctx.font = '900 13px -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans Bengali", Roboto, monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(isBossLevel ? t('bossBattle') : `${t('stage')} ${currentLevel}`, 0, -wheel.radius - 12);
+        ctx.restore();
+
+        // Target Core Hub
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = wheel.theme.wheelAccent;
+        ctx.fillStyle = '#101524';
+        ctx.strokeStyle = wheel.theme.wheelAccent;
+        ctx.lineWidth = 3;
+
+        ctx.beginPath();
+        ctx.arc(0, 0, wheel.radius * 0.44, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.shadowBlur = 0;
+        // Upper text: LVL N / BOSS
+        ctx.fillStyle = wheel.theme.wheelRim;
+        ctx.font = `800 ${Math.max(9, Math.round(wheel.radius * 0.14))}px -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans Bengali", Roboto, monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(isBossLevel ? t('boss') : `${t('stage')} ${currentLevel}`, 0, -wheel.radius * 0.18);
+
+        // Center Big Number: Arrows Remaining
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `900 ${Math.round(wheel.radius * 0.35)}px ui-monospace, SFMono-Regular, monospace`;
+        ctx.fillText(arrowsRemaining.toString(), 0, wheel.radius * 0.08);
+
+        // Lower text: ARROWS
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = `700 ${Math.max(8, Math.round(wheel.radius * 0.12))}px -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans Bengali", Roboto, monospace`;
+        ctx.fillText(t('arrows'), 0, wheel.radius * 0.28);
+
+        ctx.restore();
+      }
+
+      function renderInFlightArrows() {
+        for (let i = 0; i < inFlightArrows.length; i++) {
+          const arrow = inFlightArrows[i];
+          ctx.save();
+
+          renderArrowTrail(arrow);
+
+          ctx.translate(arrow.x, arrow.y);
+          ctx.rotate(arrow.angle);
+
+          ctx.shadowBlur = 12;
+          ctx.shadowColor = arrow.type === 'bomb' ? '#ff8800' : (arrow.type === 'ghost' ? '#00ffaa' : wheel.theme.arrowColor);
+          ctx.strokeStyle = arrow.type === 'bomb' ? '#ff8800' : (arrow.type === 'ghost' ? '#00ffaa' : wheel.theme.arrowColor);
+          ctx.lineWidth = 3.5;
+
+          ctx.beginPath();
+          ctx.moveTo(-arrow.length, 0);
+          ctx.lineTo(0, 0);
+          ctx.stroke();
+
+          if (arrow.type === 'bomb') {
+            ctx.fillStyle = '#ff3300';
+            ctx.beginPath();
+            ctx.arc(0, 0, 6, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.moveTo(6, 0);
+            ctx.lineTo(-6, -4);
+            ctx.lineTo(-3, 0);
+            ctx.lineTo(-6, 4);
+            ctx.closePath();
+            ctx.fill();
+          }
+
+          ctx.restore();
+        }
+      }
+
+      function renderArrowTrail(arrow) {
+        const style = arrow.trailStyle || 'white';
+        for (let t = 0; t < arrow.trail.length; t++) {
+          const tr = arrow.trail[t];
+          const ratio = (t + 1) / arrow.trail.length;
+
+          if (style === 'rainbow') {
+            const hue = (t * 45 + performance.now() * 0.3) % 360;
+            ctx.fillStyle = `hsla(${hue}, 100%, 65%, ${ratio * 0.6})`;
+          } else if (style === 'fire') {
+            ctx.fillStyle = ratio > 0.5 ? `rgba(255, 140, 0, ${ratio * 0.7})` : `rgba(255, 30, 0, ${ratio * 0.4})`;
+          } else if (style === 'matrix') {
+            ctx.fillStyle = `rgba(0, 255, 120, ${ratio * 0.75})`;
+          } else {
+            ctx.fillStyle = `rgba(255, 255, 255, ${ratio * 0.45})`;
+          }
+
+          ctx.beginPath();
+          ctx.arc(tr.x, tr.y, (arrow.headRadius || 6) * ratio * 0.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      function renderArcherBow() {
+        ctx.save();
+        ctx.translate(archer.x, archer.y);
+
+        if (userSettings.trajectory) {
+          ctx.save();
+          ctx.rotate(archer.angle);
+          ctx.strokeStyle = 'rgba(0, 240, 255, 0.3)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([5, 8]);
+          ctx.beginPath();
+          ctx.moveTo(38, 0);
+          ctx.lineTo(height * 0.85, 0);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.restore();
+        }
+
+        ctx.rotate(archer.angle);
+
+        const recoil = archer.recoilOffset;
+        const bowSpan = 38;
+        const bowGripDepth = 12 - recoil * 0.4;
+        const stringNock = -16 * (archer.bowStringPull || 0.4) - recoil;
+
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(bowGripDepth, -bowSpan);
+        ctx.lineTo(stringNock, 0);
+        ctx.lineTo(bowGripDepth, bowSpan);
+        ctx.stroke();
+
+        if (arrowsRemaining > 0) {
+          ctx.save();
+          ctx.strokeStyle = selectedArrowType === 'bomb' ? '#ff8800' : (selectedArrowType === 'ghost' ? '#00ffaa' : wheel.theme.arrowColor);
+          ctx.lineWidth = 3.5;
+
+          ctx.beginPath();
+          ctx.moveTo(stringNock, 0);
+          ctx.lineTo(stringNock + 48, 0);
+          ctx.stroke();
+
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.moveTo(stringNock + 54, 0);
+          ctx.lineTo(stringNock + 44, -4);
+          ctx.lineTo(stringNock + 46, 0);
+          ctx.lineTo(stringNock + 44, 4);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+
+        renderBowSkin(bowGripDepth, bowSpan);
+
+        ctx.restore();
+      }
+
+      function renderBowSkin(gripDepth, span) {
+        const skin = equippedSkin;
+
+        if (skin === 'golden') {
+          ctx.shadowBlur = 14;
+          ctx.shadowColor = '#ffd700';
+          ctx.strokeStyle = '#ffd700';
+          ctx.lineWidth = 5.5;
+
+          ctx.beginPath();
+          ctx.moveTo(gripDepth, -span);
+          ctx.quadraticCurveTo(gripDepth + 20, -span * 0.5, gripDepth + 14, 0);
+          ctx.quadraticCurveTo(gripDepth + 20, span * 0.5, gripDepth, span);
+          ctx.stroke();
+
+          ctx.fillStyle = '#ff0055';
+          ctx.beginPath();
+          ctx.arc(gripDepth + 14, 0, 5, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (skin === 'dragon') {
+          ctx.shadowBlur = 16;
+          ctx.shadowColor = '#ff2200';
+          ctx.strokeStyle = '#ff3300';
+          ctx.lineWidth = 6;
+
+          ctx.beginPath();
+          ctx.moveTo(gripDepth, -span);
+          ctx.quadraticCurveTo(gripDepth + 22, -span * 0.5, gripDepth + 15, 0);
+          ctx.quadraticCurveTo(gripDepth + 22, span * 0.5, gripDepth, span);
+          ctx.stroke();
+
+          ctx.fillStyle = '#111';
+          ctx.beginPath();
+          ctx.arc(gripDepth + 15, 0, 6, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (skin === 'neon') {
+          ctx.shadowBlur = 14;
+          ctx.shadowColor = '#00f0ff';
+          ctx.strokeStyle = '#00f0ff';
+          ctx.lineWidth = 5;
+
+          ctx.beginPath();
+          ctx.moveTo(gripDepth, -span);
+          ctx.quadraticCurveTo(gripDepth + 18, -span * 0.5, gripDepth + 14, 0);
+          ctx.quadraticCurveTo(gripDepth + 18, span * 0.5, gripDepth, span);
+          ctx.stroke();
+
+          ctx.fillStyle = '#ff0077';
+          ctx.beginPath();
+          ctx.arc(gripDepth + 14, 0, 5, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.shadowBlur = 6;
+          ctx.shadowColor = 'rgba(160, 100, 50, 0.4)';
+          ctx.strokeStyle = '#c48b59';
+          ctx.lineWidth = 5;
+
+          ctx.beginPath();
+          ctx.moveTo(gripDepth, -span);
+          ctx.quadraticCurveTo(gripDepth + 18, -span * 0.5, gripDepth + 14, 0);
+          ctx.quadraticCurveTo(gripDepth + 18, span * 0.5, gripDepth, span);
+          ctx.stroke();
+
+          ctx.fillStyle = '#4a2c11';
+          ctx.beginPath();
+          ctx.arc(gripDepth + 14, 0, 5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      function renderParticles() {
+        ctx.save();
+        for (let i = 0; i < shockwaves.length; i++) {
+          const sw = shockwaves[i];
+          ctx.strokeStyle = sw.color;
+          ctx.globalAlpha = Math.max(0, sw.alpha);
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        for (let i = 0; i < particles.length; i++) {
+          const p = particles[i];
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = Math.max(0, p.alpha);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      // ==========================================
+      // 16. ANIMATION LOOP & EVENT ATTACHMENTS
+      // ==========================================
+      function gameLoop(timestamp) {
+        const dt = Math.min(0.064, (timestamp - lastTime) / 1000);
+        lastTime = timestamp;
+
+        update(dt);
+        render();
+
+        requestAnimationFrame(gameLoop);
+      }
+
+      // Start modal buttons
+      btnStartPlay.addEventListener('click', () => {
+        sound.init();
+        modalStart.classList.remove('show');
+        isGameStarted = true;
+        setupLevel(1);
+      });
+
+      btnStartShop.addEventListener('click', () => {
+        sound.init();
+        openShop('ammo');
+      });
+
+      btnOpenShopBadge.addEventListener('click', () => {
+        sound.init();
+        openShop('ammo');
+      });
+
+      btnShop.addEventListener('click', () => {
+        sound.init();
+        openShop('ammo');
+      });
+
+      btnCloseShop.addEventListener('click', () => {
+        closeShop();
+      });
+
+      btnPauseShop.addEventListener('click', () => {
+        modalPause.classList.remove('show');
+        openShop('ammo');
+      });
+
+      btnRetry.addEventListener('click', () => {
+        sound.init();
+        retryCurrentLevel();
+      });
+
+      if (btnRestartOne) {
+        btnRestartOne.addEventListener('click', () => {
+          sound.init();
+          restartFromLevelOne();
+        });
+      }
+
+      if (btnLang) {
+        btnLang.addEventListener('click', () => {
+          sound.init();
+          const nextLang = currentLang === 'en' ? 'bn' : 'en';
+          setLanguage(nextLang);
+        });
+      }
+
+      if (btnSettingsLang) {
+        btnSettingsLang.addEventListener('click', () => {
+          sound.init();
+          const nextLang = currentLang === 'en' ? 'bn' : 'en';
+          setLanguage(nextLang);
+        });
+      }
+
+      btnAudio.addEventListener('click', () => {
+        sound.init();
+        toggleAudio();
+      });
+
+      btnPause.addEventListener('click', () => togglePause());
+      btnResume.addEventListener('click', () => togglePause());
+      btnPauseRestart.addEventListener('click', () => {
+        modalPause.classList.remove('show');
+        isPaused = false;
+        setupLevel(currentLevel);
+      });
+
+      // Initialize State
+      startHighScore.textContent = highScore;
+      startCoins.textContent = `🪙 ${playerCoins}`;
+      highScoreVal.textContent = highScore;
+      coinCounter.textContent = playerCoins;
+
+      if (sound.muted) {
+        svgAudioOn.style.display = 'none';
+        svgAudioOff.style.display = 'block';
+      }
+
+      setLanguage(currentLang);
+      resizeCanvas();
+      setupLevel(1);
+      requestAnimationFrame((ts) => {
+        lastTime = ts;
+        gameLoop(ts);
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "name": "Arrow Go! Arcade",
+  "description": "A high-octane cross-platform HTML5 Canvas arcade game with procedural infinite levels, rotating dynamic wheel obstacles, and rich audio-visual effects.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
